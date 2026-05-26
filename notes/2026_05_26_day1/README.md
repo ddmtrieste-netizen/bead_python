@@ -5,7 +5,7 @@ Discussione tra Pietro e Francesco sugli sviluppi futuri del progetto
 
 ### Ideas
 1. Check delle correnti (intensità) che vanno alle bobine A - B dello statore del **step motor**
-- orario o antiorario?
+1.1 orario o antiorario?
 2. Prendere in prestito oscilloscopio per verificare
 3. Mapping del campo magnetico all'interno dell'area di lavoro
 4. Verificare quando step motor è spento se il moto è armonico smorzato una volta inclinato il piano di lavoro (gravità non più perpendicolare al piano, entra in gioco la forza peso)
