@@ -9,11 +9,11 @@ Discussione tra Pietro e Francesco sugli sviluppi futuri del progetto
 2. Prendere in prestito oscilloscopio per verificare
 3. Mapping del campo magnetico all'interno dell'area di lavoro
 4. Verificare quando step motor è spento se il moto è armonico smorzato una volta inclinato il piano di lavoro (gravità non più perpendicolare al piano, entra in gioco la forza peso)
-  - Empiricamente inclinare a mano e filmare le oscillazioni
-  - Verificare l'influenza delle oscillazioni quando campo magnetico dello statore è stazionario. Influenza sulla sferetta.
+    * Empiricamente inclinare a mano e filmare le oscillazioni
+    * Verificare l'influenza delle oscillazioni quando campo magnetico dello statore è stazionario. Influenza sulla sferetta.
 5. Check se le beads sono paramagnetiche.
-    - Usare nel setup anche beads magnetiche permanenti
-    - Usare nel setup anche beads non magnetiche (plastica)
+    * Usare nel setup anche beads magnetiche permanenti
+    * Usare nel setup anche beads non magnetiche (plastica)
 6. Relazione corrente - campo magnetico è in regime lineare con il setup attuale.
     - Caratterizzare meglio questo regime lineare con misurazioni
     - Uscito dal regime lineare, mi aspetto un comportamento della sferetta non più pulito.
