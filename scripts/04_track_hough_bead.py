@@ -79,11 +79,11 @@ def main():
     parser.add_argument("--output", type=str, default=None)
 
     parser.add_argument("--dp", type=float, default=1.2)
-    parser.add_argument("--min-dist", type=float, default=30)
+    parser.add_argument("--min-dist", type=float, default=60)
     parser.add_argument("--param1", type=float, default=100)
-    parser.add_argument("--param2", type=float, default=20)
-    parser.add_argument("--min-radius", type=int, default=3)
-    parser.add_argument("--max-radius", type=int, default=40)
+    parser.add_argument("--param2", type=float, default=30)
+    parser.add_argument("--min-radius", type=int, default=10)
+    parser.add_argument("--max-radius", type=int, default=50)
 
     args = parser.parse_args()
 
