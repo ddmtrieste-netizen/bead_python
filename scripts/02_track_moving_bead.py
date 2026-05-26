@@ -19,6 +19,7 @@ from _common import (
 def main():
     parser = argparse.ArgumentParser(description="Track largest moving bead using background subtraction.")
     parser.add_argument("--camera", type=int, default=0, help="Camera index.")
+    parser.add_argument("--save", type=bool, default=0, help="Save data to CSV.")
     parser.add_argument("--output", type=str, default=None, help="Output CSV path.")
 
     parser.add_argument("--history", type=int, default=500, help="MOG2 history.")
@@ -103,7 +104,7 @@ def main():
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("q"):
-            if len(ts) > 0:
+            if len(ts) > 0 & args.save:
                 save_tracking_csv(args.output, ts, xs, ys, radii, areas)
                 print(f"Saved {len(ts)} points to: {args.output}")
             else:

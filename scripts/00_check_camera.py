@@ -1,7 +1,5 @@
 import argparse
-
 import cv2
-
 from _common import open_camera, read_frame_or_raise
 
 
