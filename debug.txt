@@ -1,3 +1,8 @@
+Fixed repeated Qt font warnings from OpenCV 
+highgui windows by creating the missing cv2/qt/fonts directory
+nside the active virtual environment and symlinking the system DejaVu fonts there. 
+This prevents QFontDatabase warnings when using cv2.imshow().
+
 CV2_DIR=$(python3 -c "import cv2, pathlib; print(pathlib.Path(cv2.__file__).resolve().parent)")
 echo $CV2_DIR
 mkdir -p "$CV2_DIR/qt/fonts"
