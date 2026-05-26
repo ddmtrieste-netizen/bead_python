@@ -1,0 +1,52 @@
+import cv2
+import os
+import time
+
+def record_frames(output_folder="output_frames", camera_index=0):
+    # Create the output directory if it doesn't exist
+    if not os.path.exists(output_folder):
+        os.makedirs(output_folder)
+        print(f"Created folder: {output_folder}")
+
+    # Initialize the USB camera (0 is usually the default built-in or first USB cam)
+    cap = cv2.VideoCapture(camera_index)
+
+    if not cap.isOpened():
+        print(f"Error: Could not open video device at index {camera_index}")
+        return
+
+    print("Recording started. Press 'q' to quit.")
+    
+    frame_count = 0
+    try:
+        while True:
+            # Capture frame-by-frame
+            ret, frame = cap.read()
+            
+            if not ret:
+                print("Error: Failed to grab frame.")
+                break
+
+            # Create a unique filename using a padded frame count
+            filename = os.path.join(output_folder, f"frame_{frame_count:05d}.jpg")
+            
+            # Save the frame as a JPEG
+            cv2.imwrite(filename, frame)
+            frame_count += 1
+
+            # Optional: Display the recording live stream
+            cv2.imshow('USB Camera Feed', frame)
+
+            # Break the loop if 'q' key is pressed
+            # The parameter inside waitKey is milliseconds to wait between frames
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+
+    finally:
+        # Clean up everything when done
+        cap.release()
+        cv2.destroyAllWindows()
+        print(f"Recording stopped. Saved {frame_count} frames to '{output_folder}'.")
+
+if __name__ == "__main__":
+    record_frames()
