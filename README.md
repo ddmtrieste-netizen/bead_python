@@ -12,6 +12,8 @@ Track the position of a bead moving above a stepper motor stator and reconstruct
 - Tracking method: background subtraction / Hough circle detection
 - Actuation: stepper motor stator
 - Object: magnetic or non-magnetic bead
+- Working plane: free Petri, contrained, concentric
+- Surrounding fluid: ari, water
 
 ## Repository structure
 
