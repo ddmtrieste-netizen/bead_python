@@ -66,7 +66,7 @@ def main():
         return
 
     plt.figure(figsize=(14, 8))
-    maximize_window()
+    # maximize_window()
 
     plt.plot(x, y)
     plt.xlabel("x [px]")
@@ -79,7 +79,7 @@ def main():
         plt.savefig(args.save, dpi=200, bbox_inches="tight")
 
     plt.figure(figsize=(14, 8))
-    maximize_window()
+    # maximize_window()
 
     plt.plot(t, x, label="x")
     plt.plot(t, y, label="y")
