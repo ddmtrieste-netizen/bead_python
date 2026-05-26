@@ -94,17 +94,17 @@ def main():
         draw_detection(display, detection)
         draw_track(display, xs, ys)
 
-        cv2.imshow("tracking", display)
-
         if not args.no_debug:
             cv2.imshow("foreground", foreground)
             cv2.imshow("threshold", threshold)
             cv2.imshow("clean_mask", clean)
 
+        cv2.imshow("tracking", display)
+
         key = cv2.waitKey(1) & 0xFF
 
         if key == ord("q"):
-            if len(ts) > 0 & args.save:
+            if len(ts) > 0 and args.save:
                 save_tracking_csv(args.output, ts, xs, ys, radii, areas)
                 print(f"Saved {len(ts)} points to: {args.output}")
             else:
