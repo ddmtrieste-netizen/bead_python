@@ -27,6 +27,9 @@ data
 *.jpeg
 *.png
 
+# Arduino scripts
+ino_scripts/*
+
 # But keep placeholders
 !experiments/**/README.md
 !experiments/**/protocol.md
