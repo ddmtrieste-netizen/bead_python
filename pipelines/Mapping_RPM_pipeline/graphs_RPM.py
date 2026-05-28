@@ -632,7 +632,7 @@ def main():
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="./data/mapping_RPM_submerged/mapping_RMP",
+        default="./data/mapping_RPM_submerged/mapping_RMP3",
         help="Folder containing files like 5_RPM.csv.",
     )
 
