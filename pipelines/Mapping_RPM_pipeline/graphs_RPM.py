@@ -327,11 +327,7 @@ def analyze_single_file(
 # ---------------------------------------------------------------------
 
 def run_explore(args):
-    """
-    Keep this mode close to the original structure:
-    - trajectory x-y
-    - x(t), y(t)
-    """
+    
 
     if args.speed is None:
         args.speed = 5
@@ -492,7 +488,7 @@ def main():
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="./data/mapping_RPM_submerged/mapping_RMP",
+        default="./data/mapping_RPM_submerged/mapping_RMP3",
         help="Folder containing files like 5_RPM.csv.",
     )
 
