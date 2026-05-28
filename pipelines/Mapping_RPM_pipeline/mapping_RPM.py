@@ -49,7 +49,7 @@ def tracker(cap, speed, recording_time_sec):
     args = CustomArgs()
     args.camera = 0
     args.save = 1
-    args.output = f"data/processed/mapping_RMP2/{speed}_RPM.csv"
+    args.output = f"data/processed/mapping_RMP3/{speed}_RPM.csv"
     args.history = 500
     args.var_threshold = 100.0  
     args.threshold = 120        
@@ -156,7 +156,7 @@ def main():
 
                 command = str(ii) + "\n"
                 ser.write(command.encode('utf-8'))
-                tracker(cap, ii, 1)
+                tracker(cap, ii, 180)
         finally:
             cap.release()            
                 
