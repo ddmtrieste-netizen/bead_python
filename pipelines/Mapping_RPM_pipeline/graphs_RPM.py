@@ -9,9 +9,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# ---------------------------------------------------------------------
+# =============================================================================
 # IO
-# ---------------------------------------------------------------------
+# =============================================================================
 
 def load_csv(filename):
     t = []
@@ -40,8 +40,7 @@ def load_csv(filename):
 
 
 def get_file_from_speed(data_dir, speed):
-    data_dir = Path(data_dir)
-    return data_dir / f"{speed}_RPM.csv"
+    return Path(data_dir) / f"{speed}_RPM.csv"
 
 
 def write_single_result_csv(output_file, result):
@@ -67,9 +66,9 @@ def write_single_result_csv(output_file, result):
         writer.writerow(result)
 
 
-# ---------------------------------------------------------------------
+# =============================================================================
 # Plot style
-# ---------------------------------------------------------------------
+# =============================================================================
 
 def apply_screen_scale(scale):
     plt.rcParams.update({
@@ -84,9 +83,9 @@ def apply_screen_scale(scale):
     })
 
 
-# ---------------------------------------------------------------------
-# Signal handling
-# ---------------------------------------------------------------------
+# =============================================================================
+# Signal utilities
+# =============================================================================
 
 def select_signal(signal_name, x, y, radius):
     if signal_name == "x":
@@ -106,6 +105,7 @@ def clean_and_sort_time_signal(t, signal):
     signal = np.asarray(signal, dtype=float)
 
     valid = np.isfinite(t) & np.isfinite(signal)
+
     t = t[valid]
     signal = signal[valid]
 
@@ -117,28 +117,19 @@ def clean_and_sort_time_signal(t, signal):
     return t[order], signal[order]
 
 
-# ---------------------------------------------------------------------
+# =============================================================================
 # FFT core
-# ---------------------------------------------------------------------
+# =============================================================================
 
 def estimate_fft_raw(t, signal, fmin=0.0, fmax=None):
     """
-    Estimate the dominant frequency from one signal using FFT.
+    FFT sull'intero segnale.
 
-    The input timestamps can be slightly non-uniform because they come from
-    real camera acquisition. For this reason, the signal is first interpolated
-    on a uniform time grid.
-
-    Returns
-    -------
-    rpm : float
-        Dominant frequency converted to cycles/min.
-    freq_hz : float
-        Dominant frequency in Hz.
-    freqs : ndarray
-        Frequency axis.
-    spectrum : ndarray
-        One-sided FFT amplitude.
+    Ritorna:
+        rpm       frequenza dominante in cicli/min
+        freq_hz   frequenza dominante in Hz
+        freqs     asse frequenze
+        spectrum  ampiezza FFT
     """
 
     t, signal = clean_and_sort_time_signal(t, signal)
@@ -161,10 +152,11 @@ def estimate_fft_raw(t, signal, fmin=0.0, fmax=None):
     if n_uniform < 4:
         return np.nan, np.nan, np.array([]), np.array([])
 
+    # Resampling uniforme: utile perché il timestamp reale della camera può jitterare.
     t_uniform = np.linspace(t[0], t[-1], n_uniform)
     signal_uniform = np.interp(t_uniform, t, signal)
 
-    # Raw FFT idea: only remove the mean/DC component.
+    # Rimozione componente media/DC.
     signal_uniform = signal_uniform - np.mean(signal_uniform)
 
     dt_uniform = t_uniform[1] - t_uniform[0]
@@ -186,37 +178,60 @@ def estimate_fft_raw(t, signal, fmin=0.0, fmax=None):
     freqs_selected = freqs[mask]
     spectrum_selected = spectrum[mask]
 
-    freq_hz = freqs_selected[np.argmax(spectrum_selected)]
+    peak_index = np.argmax(spectrum_selected)
+
+    freq_hz = freqs_selected[peak_index]
     rpm = 60.0 * freq_hz
 
     return rpm, freq_hz, freqs, spectrum
 
 
-def estimate_fft_bins(t, signal, bin_sec=20.0, fmin=0.0, fmax=None):
+def compute_bin_ffts(t, signal, bin_sec=20.0, fmin=0.0, fmax=None):
     """
-    Estimate dominant frequency on non-overlapping bins.
+    Divide il segnale in bin non-overlapping.
+    Per ogni bin calcola:
+        - FFT
+        - picco dominante
+        - RPM equivalente
 
-    For each bin, compute one raw FFT.
-    The final value is the median of the bin-wise RPM values.
+    Ritorna una lista di dizionari, uno per bin valido.
     """
 
     t, signal = clean_and_sort_time_signal(t, signal)
 
     if len(t) < 4:
-        return np.nan, np.nan, []
+        return []
 
     t0 = t[0]
     t1 = t[-1]
     duration = t1 - t0
 
     if duration <= 0:
-        return np.nan, np.nan, []
+        return []
 
+    bins = []
+
+    # Se il file è più corto del bin richiesto, faccio una sola FFT.
     if duration < bin_sec:
-        rpm, _, _, _ = estimate_fft_raw(t, signal, fmin=fmin, fmax=fmax)
-        return rpm, np.nan, [rpm]
+        rpm, freq_hz, freqs, spectrum = estimate_fft_raw(
+            t,
+            signal,
+            fmin=fmin,
+            fmax=fmax,
+        )
 
-    bin_rpms = []
+        if np.isfinite(rpm):
+            bins.append({
+                "start": t0,
+                "end": t1,
+                "rpm": rpm,
+                "freq_hz": freq_hz,
+                "freqs": freqs,
+                "spectrum": spectrum,
+            })
+
+        return bins
+
     start = t0
 
     while start + bin_sec <= t1:
@@ -224,7 +239,7 @@ def estimate_fft_bins(t, signal, bin_sec=20.0, fmin=0.0, fmax=None):
         mask = (t >= start) & (t < end)
 
         if np.count_nonzero(mask) >= 4:
-            rpm, _, _, _ = estimate_fft_raw(
+            rpm, freq_hz, freqs, spectrum = estimate_fft_raw(
                 t[mask],
                 signal[mask],
                 fmin=fmin,
@@ -232,14 +247,40 @@ def estimate_fft_bins(t, signal, bin_sec=20.0, fmin=0.0, fmax=None):
             )
 
             if np.isfinite(rpm):
-                bin_rpms.append(rpm)
+                bins.append({
+                    "start": start,
+                    "end": end,
+                    "rpm": rpm,
+                    "freq_hz": freq_hz,
+                    "freqs": freqs,
+                    "spectrum": spectrum,
+                })
 
         start = end
 
-    if len(bin_rpms) == 0:
+    return bins
+
+
+def estimate_fft_bins(t, signal, bin_sec=20.0, fmin=0.0, fmax=None):
+    """
+    Stima finale con bin non-overlapping.
+
+    Per ogni bin si prende il picco FFT.
+    Come valore rappresentativo finale si usa la mediana degli RPM dei bin.
+    """
+
+    bins = compute_bin_ffts(
+        t,
+        signal,
+        bin_sec=bin_sec,
+        fmin=fmin,
+        fmax=fmax,
+    )
+
+    if len(bins) == 0:
         return np.nan, np.nan, []
 
-    bin_rpms = np.asarray(bin_rpms, dtype=float)
+    bin_rpms = np.asarray([b["rpm"] for b in bins], dtype=float)
 
     rpm_median = float(np.median(bin_rpms))
     rpm_std = float(np.std(bin_rpms))
@@ -247,9 +288,66 @@ def estimate_fft_bins(t, signal, bin_sec=20.0, fmin=0.0, fmax=None):
     return rpm_median, rpm_std, list(bin_rpms)
 
 
-# ---------------------------------------------------------------------
-# Analysis of one file
-# ---------------------------------------------------------------------
+def aggregate_bin_spectra(bins, aggregate="mean"):
+    """
+    Aggrega gli spettri FFT dei singoli bin.
+
+    Questo produce uno spettro simile alla raw FFT come assi:
+        x = frequency [Hz]
+        y = aggregated FFT amplitude
+
+    aggregate:
+        "mean"  consigliato, scala più confrontabile
+        "sum"   somma pura degli spettri
+    """
+
+    if len(bins) == 0:
+        return np.array([]), np.array([])
+
+    freq_common = bins[0]["freqs"]
+
+    if len(freq_common) == 0:
+        return np.array([]), np.array([])
+
+    spectra = []
+
+    for b in bins:
+        freqs = b["freqs"]
+        spectrum = b["spectrum"]
+
+        if len(freqs) == 0 or len(spectrum) == 0:
+            continue
+
+        spectrum_interp = np.interp(
+            freq_common,
+            freqs,
+            spectrum,
+            left=0.0,
+            right=0.0,
+        )
+
+        spectra.append(spectrum_interp)
+
+    if len(spectra) == 0:
+        return np.array([]), np.array([])
+
+    spectra = np.asarray(spectra, dtype=float)
+
+    if aggregate == "mean":
+        spectrum_agg = np.mean(spectra, axis=0)
+
+    elif aggregate == "sum":
+        spectrum_agg = np.sum(spectra, axis=0)
+
+    else:
+        raise ValueError(f"Unknown aggregate: {aggregate}")
+
+    return freq_common, spectrum_agg
+
+
+# =============================================================================
+# Atomic analysis: one file
+# =============================================================================
 
 def analyze_single_file(
     speed=None,
@@ -261,9 +359,10 @@ def analyze_single_file(
     fmax=None,
 ):
     """
-    Atomic analysis: one speed -> one file -> one result.
+    Analisi atomica:
+        speed -> speed_RPM.csv -> valore RPM stimato
 
-    If speed is not provided, speed=5 is used as fallback.
+    Se speed non è specificata, usa speed=5.
     """
 
     if speed is None:
@@ -288,8 +387,10 @@ def analyze_single_file(
             fmin=fmin,
             fmax=fmax,
         )
+
         bead_rpm_std = np.nan
         n_bins = 1
+        final_bin_sec = np.nan
 
     elif method == "bins":
         bead_rpm, bead_rpm_std, bin_rpms = estimate_fft_bins(
@@ -299,14 +400,16 @@ def analyze_single_file(
             fmin=fmin,
             fmax=fmax,
         )
+
         n_bins = len(bin_rpms)
+        final_bin_sec = float(bin_sec)
 
     else:
         raise ValueError(f"Unknown method: {method}")
 
     duration_s = float(t[-1] - t[0]) if len(t) > 1 else np.nan
 
-    result = {
+    return {
         "steps_per_second": int(speed),
         "file": str(file_path),
         "method": method,
@@ -316,18 +419,21 @@ def analyze_single_file(
         "duration_s": duration_s,
         "n_points": int(len(t)),
         "n_bins": int(n_bins),
-        "bin_sec": float(bin_sec) if method == "bins" else np.nan,
+        "bin_sec": final_bin_sec,
     }
 
-    return result
 
-
-# ---------------------------------------------------------------------
+# =============================================================================
 # Modes
-# ---------------------------------------------------------------------
+# =============================================================================
 
 def run_explore(args):
-    
+    """
+    Modalità esplorativa.
+    Volutamente semplice:
+        - traiettoria x-y
+        - x(t), y(t)
+    """
 
     if args.speed is None:
         args.speed = 5
@@ -351,6 +457,7 @@ def run_explore(args):
     plt.axis("equal")
     plt.grid(True)
     plt.title(f"Bead trajectory | speed = {args.speed}")
+    plt.tight_layout()
 
     plt.figure(figsize=(14, 8))
     plt.plot(t, x, label="x")
@@ -360,16 +467,15 @@ def run_explore(args):
     plt.grid(True)
     plt.legend()
     plt.title(f"Position vs time | speed = {args.speed}")
+    plt.tight_layout()
 
     plt.show()
 
 
 def run_produce(args):
     """
-    Produce mode: one file only.
-
-    This is intentionally atomic. Batch iteration belongs to
-    automatic_produce.py.
+    Modalità produce.
+    Analizza un solo file e mostra la diagnostica FFT.
     """
 
     if args.speed is None:
@@ -409,6 +515,7 @@ def run_produce(args):
         f"bead_rpm_fft_std={bead_rpm_std:.6g} "
         f"method={result['method']} "
         f"signal={result['signal']} "
+        f"n_bins={result['n_bins']} "
         f"file={result['file']}"
     )
 
@@ -439,7 +546,7 @@ def run_produce(args):
         plt.tight_layout()
 
     elif args.method == "bins":
-        rpm, rpm_std, bin_rpms = estimate_fft_bins(
+        bins = compute_bin_ffts(
             t,
             signal,
             bin_sec=args.bin_sec,
@@ -447,23 +554,60 @@ def run_produce(args):
             fmax=args.fmax,
         )
 
+        if len(bins) == 0:
+            print("No valid bins found.")
+            return
+
+        bin_rpms = np.asarray([b["rpm"] for b in bins], dtype=float)
+        bin_starts = np.asarray([b["start"] - bins[0]["start"] for b in bins], dtype=float)
+
+        rpm_median = float(np.median(bin_rpms))
+        rpm_std = float(np.std(bin_rpms))
+
+        # Plot 1: picco dominante per ogni bin.
         plt.figure(figsize=(14, 8))
-        plt.plot(np.arange(len(bin_rpms)), bin_rpms, marker="o")
-        plt.xlabel("non-overlapping bin index")
+        plt.plot(bin_starts, bin_rpms, marker="o")
+        plt.xlabel("bin start time [s]")
         plt.ylabel("bead dominant frequency [cycles/min]")
         plt.grid(True)
         plt.title(
-            f"Binned FFT | speed = {args.speed} | "
-            f"median = {rpm:.4g}, std = {rpm_std:.4g}"
+            f"Binned FFT peaks | speed = {args.speed} | "
+            f"median = {rpm_median:.4g}, std = {rpm_std:.4g}, "
+            f"bin = {args.bin_sec:g}s"
         )
         plt.tight_layout()
+
+        # Plot 2: spettro aggregato dei bin.
+        freqs_agg, spectrum_agg = aggregate_bin_spectra(
+            bins,
+            aggregate=args.bin_spectrum_aggregate,
+        )
+
+        if len(freqs_agg) > 0 and len(spectrum_agg) > 0:
+            peak_index = np.argmax(spectrum_agg)
+            peak_freq = freqs_agg[peak_index]
+            peak_rpm = 60.0 * peak_freq
+
+            plt.figure(figsize=(14, 8))
+            plt.plot(freqs_agg, spectrum_agg)
+            plt.xlabel("frequency [Hz]")
+            plt.ylabel(f"{args.bin_spectrum_aggregate} FFT amplitude")
+            plt.grid(True)
+            plt.title(
+                f"Aggregated binned FFT spectrum | speed = {args.speed} | "
+                f"peak = {peak_freq:.4g} Hz = {peak_rpm:.4g} cycles/min"
+            )
+            plt.tight_layout()
+
+        else:
+            print("No valid aggregated binned spectrum.")
 
     plt.show()
 
 
-# ---------------------------------------------------------------------
+# =============================================================================
 # Main
-# ---------------------------------------------------------------------
+# =============================================================================
 
 def main():
     parser = argparse.ArgumentParser(
@@ -488,7 +632,7 @@ def main():
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="./data/mapping_RPM_submerged/mapping_RMP3",
+        default="./data/mapping_RPM_submerged/mapping_RMP",
         help="Folder containing files like 5_RPM.csv.",
     )
 
@@ -513,6 +657,14 @@ def main():
         type=float,
         default=20.0,
         help="Bin length in seconds for --method bins.",
+    )
+
+    parser.add_argument(
+        "--bin-spectrum-aggregate",
+        type=str,
+        default="mean",
+        choices=["mean", "sum"],
+        help="How to aggregate FFT spectra from bins.",
     )
 
     parser.add_argument(
