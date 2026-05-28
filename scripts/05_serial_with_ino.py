@@ -12,7 +12,7 @@ RESET   = "\033[0m"
 VIOLA   = "\033[35m"
 
 # Sostituisci con la tua porta e il tuo baud rate dell'Arduino
-SERIAL_PORT = '/dev/ttyACM0'
+SERIAL_PORT = '/dev/ttyACM1'
 BAUD_RATE = 9600
 
 def read_from_arduino(ser):
