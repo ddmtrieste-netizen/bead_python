@@ -15,4 +15,6 @@ See [this](data/mapping_RPM_submerged/mapping_RMP) folder
 
 ## Results
 ![RPM plot raw](pipelines/Mapping_RPM_pipeline/rpm_curve_raw.png)
+
+
 ![RPM plot binned](pipelines/Mapping_RPM_pipeline/rpm_curve_bins.png)
