@@ -357,6 +357,21 @@ def plot_time_traces(data, title, save_dir=None):
     if save_dir is not None:
         save_current_figure(save_dir, "hall_yz_time_traces.png")
 
+def plot_bx_trace(data, title, save_dir=None):
+    plt.figure(figsize=(14, 8))
+
+    plt.plot(data["t"], data["bx"], label="Bx")
+
+    plt.xlabel("t [s]")
+    plt.ylabel("raw magnetic field counts")
+    plt.grid(True)
+    plt.legend()
+    plt.title(f"{title} | Bx vs time")
+    plt.tight_layout()
+
+    if save_dir is not None:
+        save_current_figure(save_dir, "hall_bx_time_trace.png")
+
 
 def plot_polar_yz(data, title, save_dir=None):
     fig = plt.figure(figsize=(14, 8))
@@ -381,6 +396,7 @@ def plot_results(data, title, save_dir=None):
         return
 
     plot_time_traces(data, title, save_dir=save_dir)
+    plot_bx_trace(data, title, save_dir=save_dir)
     plot_polar_yz(data, title, save_dir=save_dir)
 
     plt.show()
