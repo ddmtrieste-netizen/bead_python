@@ -377,7 +377,7 @@ def plot_polar_yz(data, title, save_dir=None):
     fig = plt.figure(figsize=(14, 8))
     ax = fig.add_subplot(111, projection="polar")
 
-    ax.plot(data["theta"], data["rho"], marker=".", linestyle="none")
+    ax.plot(data["theta"], data["rho"], marker=".", linestyle="-")
 
     ax.set_title(f"{title} | polar field in yz plane")
     ax.set_theta_zero_location("E")   # theta = 0 along +By
@@ -397,7 +397,6 @@ def plot_results(data, title, save_dir=None):
 
     plot_time_traces(data, title, save_dir=save_dir)
     plot_bx_trace(data, title, save_dir=save_dir)
-    plot_polar_yz(data, title, save_dir=save_dir)
 
     plt.show()
 
