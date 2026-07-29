@@ -1,6 +1,6 @@
 [project]
 name = "bead-python"
-version = "1.0.1.dev0"
+version = "1.0.1"
 description = "Bead tracking and magnetic-actuation experiment scripts."
 readme = "README.md"
 requires-python = ">=3.10"

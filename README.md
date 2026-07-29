@@ -3,8 +3,8 @@
 Python tools for bead detection, tracking, and trajectory analysis in magnetic
 actuation experiments based on a stepper-motor stator.
 
-`v1.0.0` is the frozen experimental baseline. Maintenance fixes are developed
-on `maintenance/1.x` and will be released as `v1.0.1`.
+`v1.0.0` is the frozen experimental baseline. The first consolidated
+maintenance release is `v1.0.1`.
 
 ## Experimental setup
 
@@ -36,10 +36,18 @@ uv run python pipelines/Mapping_RPM_pipeline/mapping_RPM.py --serial-port COM3
 uv run python pipelines/Mapping_Hall_RPM_pipeline/mapping_hall_RPM.py --arduino-port COM3
 ```
 
+Compile the stepper firmware for an Arduino Uno with:
+
+```powershell
+arduino-cli compile --fqbn arduino:avr:uno firmware/ino_scripts/bead_stepper_motor
+```
+
 RPM mapping acquisition and analysis both use
 `data/processed/mapping_RPM/`. Experimental data are intentionally ignored by
 Git and must be archived separately with their acquisition metadata.
 
 Before acquiring calibrated data, ensure that `microsteps` in
-`firmware/ino_scripts/bead_stepper_motor.ino` matches the physical driver
-configuration.
+`firmware/ino_scripts/bead_stepper_motor/bead_stepper_motor.ino` matches the
+physical driver configuration.
+
+See [CHANGELOG.md](CHANGELOG.md) for release details.
