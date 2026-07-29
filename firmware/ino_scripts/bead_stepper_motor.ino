@@ -1,65 +1,138 @@
-// Define pin connections
-const int stepPin = 8;       // Arduino pin for STEP pulse
-const int dirPin  = 9;       // Arduino pin for DIRECTION
-// (Optional) const int enaPin  = 4;    // Arduino pin for ENABLE, if used
+#include <ctype.h>
+#include <math.h>
+#include <stdlib.h>
 
-// Motor/driver parameters
-const int microsteps = 1;        // microstepping setting (1/16)
-const int stepsPerRev = 200;      // full steps per revolution for NEMA 17 (1.8° step)
-const int stepsPerRevMicro = stepsPerRev * microsteps;  // = 3200 steps/rev @1/16
+// Stepper driver pin connections
+const int stepPin = 8;
+const int dirPin = 9;
 
-int rpm = 0;                      // current speed in RPM (0 = stop)
-unsigned long stepDelayMicros = 0; // delay between step pulses in microseconds
-const int pulseWidthMicros = 10;   // pulse width for step signal (microseconds)
+// Motor/driver parameters.
+// IMPORTANT: microsteps must match the physical driver's MS pin/DIP setting.
+// The maintenance baseline uses full-step mode; set this to 16 only when the
+// driver is physically configured for 1/16 microstepping.
+const unsigned int microsteps = 1;
+const unsigned int fullStepsPerRevolution = 200;
+const unsigned long stepsPerRevolution =
+    (unsigned long)fullStepsPerRevolution * microsteps;
+const unsigned int pulseWidthMicros = 10;
+
+double commandedRpm = 0.0;
+unsigned long stepIntervalMicros = 0;
+unsigned long nextStepMicros = 0;
+
+char commandBuffer[24];
+size_t commandLength = 0;
+
+
+bool setRpm(double newRpm) {
+  if (!isfinite(newRpm) || newRpm < 0.0) {
+    Serial.println("ERR RPM must be a finite non-negative number");
+    return false;
+  }
+
+  if (newRpm == 0.0) {
+    commandedRpm = 0.0;
+    stepIntervalMicros = 0;
+    digitalWrite(stepPin, LOW);
+    Serial.println("Set RPM = 0");
+    return true;
+  }
+
+  const double stepsPerSecond =
+      newRpm * (double)stepsPerRevolution / 60.0;
+  const double requestedInterval = 1000000.0 / stepsPerSecond;
+
+  if (requestedInterval <= pulseWidthMicros) {
+    Serial.println("ERR requested RPM exceeds pulse timing limit");
+    return false;
+  }
+
+  commandedRpm = newRpm;
+  stepIntervalMicros = (unsigned long)(requestedInterval + 0.5);
+  nextStepMicros = micros();
+
+  Serial.print("Set RPM = ");
+  Serial.println(commandedRpm, 3);
+  return true;
+}
+
+
+void processCommand() {
+  commandBuffer[commandLength] = '\0';
+
+  char *endPointer = NULL;
+  const double value = strtod(commandBuffer, &endPointer);
+
+  while (endPointer != NULL && isspace(*endPointer)) {
+    endPointer++;
+  }
+
+  if (endPointer == commandBuffer || endPointer == NULL || *endPointer != '\0') {
+    Serial.println("ERR command must be '<rpm>'");
+  } else {
+    setRpm(value);
+  }
+
+  commandLength = 0;
+}
+
+
+void readSerialCommands() {
+  while (Serial.available() > 0) {
+    const char incoming = (char)Serial.read();
+
+    if (incoming == '\n' || incoming == '\r') {
+      if (commandLength > 0) {
+        processCommand();
+      }
+      continue;
+    }
+
+    if (commandLength < sizeof(commandBuffer) - 1) {
+      commandBuffer[commandLength++] = incoming;
+    } else {
+      commandLength = 0;
+      Serial.println("ERR command too long");
+    }
+  }
+}
+
+
+void generateStepPulse() {
+  if (commandedRpm <= 0.0 || stepIntervalMicros == 0) {
+    return;
+  }
+
+  const unsigned long now = micros();
+  if ((long)(now - nextStepMicros) < 0) {
+    return;
+  }
+
+  digitalWrite(stepPin, HIGH);
+  delayMicroseconds(pulseWidthMicros);
+  digitalWrite(stepPin, LOW);
+
+  // Schedule from the actual pulse time. This supports intervals much longer
+  // than delayMicroseconds() and remains safe across micros() wrap-around.
+  nextStepMicros = now + stepIntervalMicros;
+}
+
 
 void setup() {
   Serial.begin(9600);
-  Serial.println("Stepper Speed Control - Enter RPM:");
 
   pinMode(stepPin, OUTPUT);
   pinMode(dirPin, OUTPUT);
-  // pinMode(enaPin, OUTPUT);  // if using enable
-  digitalWrite(dirPin, HIGH);    // set direction (HIGH or LOW). Only one direction used.
-  // digitalWrite(enaPin, HIGH); // enable driver (if ENA active low, HIGH keeps it enabled)
+  digitalWrite(stepPin, LOW);
+  digitalWrite(dirPin, HIGH);
 
-  // Start with motor stopped (rpm=0)
-  rpm = 0;
-  stepDelayMicros = 0;
+  setRpm(0.0);
+  Serial.print("Stepper ready; command unit=RPM; microsteps=");
+  Serial.println(microsteps);
 }
 
-void loop() {
-  // Check for user input from serial
-  if (Serial.available() > 0) {
-    int newSpeed = Serial.parseInt();   // read the entered number (RPM)
-    if (newSpeed >= 0) {                // ensure it's non-negative
-      rpm = newSpeed;
-      if (rpm > 0) {
-        // Calculate delay between steps in microseconds for the given RPM
-        float stepsPerSec = (rpm * (float)stepsPerRevMicro) / 60.0;
-        stepDelayMicros = (unsigned long)(1000000.0 / stepsPerSec);
-      } else {
-        stepDelayMicros = 0;  // rpm = 0, motor stopped
-      }
-      Serial.print("Set RPM = ");
-      Serial.println(rpm);
-    }
-    // Clear any leftover input
-    Serial.flush();
-  }
 
-  // If RPM is set (non-zero), generate step pulses at the calculated interval
-  if (rpm > 0 && stepDelayMicros > 0) {
-    // Step pulse HIGH
-    digitalWrite(stepPin, HIGH);
-    delayMicroseconds(pulseWidthMicros);       // short pulse to meet driver requirements
-    // Step pulse LOW
-    digitalWrite(stepPin, LOW);
-    // Wait for the rest of the step period
-    delayMicroseconds(stepDelayMicros - pulseWidthMicros);
-    // (Using delayMicroseconds for fine resolution. For very long delays >16383 μs, use delay().)
-  } 
-  else {
-    // Motor is stopped; small delay to avoid busy-waiting
-    delay(10);
-  }
+void loop() {
+  readSerialCommands();
+  generateStepPulse();
 }

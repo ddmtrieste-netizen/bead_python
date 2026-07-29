@@ -48,7 +48,7 @@ def write_single_result_csv(output_file, result):
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     fieldnames = [
-        "steps_per_second",
+        "motor_rpm_command",
         "file",
         "method",
         "signal",
@@ -351,7 +351,7 @@ def aggregate_bin_spectra(bins, aggregate="mean"):
 
 def analyze_single_file(
     speed=None,
-    data_dir="./data/mapping_RPM_submerged/mapping_RMP",
+    data_dir="data/processed/mapping_RPM",
     method="raw",
     signal_name="x",
     bin_sec=20.0,
@@ -410,7 +410,7 @@ def analyze_single_file(
     duration_s = float(t[-1] - t[0]) if len(t) > 1 else np.nan
 
     return {
-        "steps_per_second": int(speed),
+        "motor_rpm_command": int(speed),
         "file": str(file_path),
         "method": method,
         "signal": signal_name,
@@ -510,7 +510,7 @@ def run_produce(args):
 
     print(
         "RESULT "
-        f"steps_per_second={result['steps_per_second']} "
+        f"motor_rpm_command={result['motor_rpm_command']} "
         f"bead_rpm_fft={bead_rpm:.6g} "
         f"bead_rpm_fft_std={bead_rpm_std:.6g} "
         f"method={result['method']} "
@@ -632,7 +632,7 @@ def main():
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="./data/mapping_RPM_submerged/mapping_RMP3",
+        default="data/processed/mapping_RPM",
         help="Folder containing files like 5_RPM.csv.",
     )
 

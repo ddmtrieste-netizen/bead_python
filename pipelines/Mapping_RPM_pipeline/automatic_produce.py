@@ -17,7 +17,7 @@ def infer_speed_from_filename(file_path):
         5_RPM.csv
         25_RPM.csv
 
-    The leading number is interpreted as motor command [steps/s].
+    The leading number is interpreted as motor command [RPM].
     """
 
     file_path = Path(file_path)
@@ -50,7 +50,7 @@ def save_summary_csv(output_file, rows):
     output_file.parent.mkdir(parents=True, exist_ok=True)
 
     fieldnames = [
-        "steps_per_second",
+        "motor_rpm_command",
         "file",
         "method",
         "signal",
@@ -71,7 +71,7 @@ def save_summary_csv(output_file, rows):
 
 
 def plot_rpm_curve(rows, output_figure=None, title=None):
-    steps = np.asarray([row["steps_per_second"] for row in rows], dtype=float)
+    motor_rpm = np.asarray([row["motor_rpm_command"] for row in rows], dtype=float)
     bead_rpm = np.asarray([row["bead_rpm_fft"] for row in rows], dtype=float)
     bead_rpm_std = np.asarray([row["bead_rpm_fft_std"] for row in rows], dtype=float)
 
@@ -82,7 +82,7 @@ def plot_rpm_curve(rows, output_figure=None, title=None):
 
     if method == "bins":
         plt.errorbar(
-            steps,
+            motor_rpm,
             bead_rpm,
             yerr=bead_rpm_std,
             marker="o",
@@ -92,20 +92,20 @@ def plot_rpm_curve(rows, output_figure=None, title=None):
         )
     else:
         plt.plot(
-            steps,
+            motor_rpm,
             bead_rpm,
             marker="o",
             linestyle="-",
             label=f"Raw FFT, signal={signal}",
         )
 
-    plt.xlabel("motor command [steps/s]")
+    plt.xlabel("motor command [RPM]")
     plt.ylabel("bead dominant frequency [cycles/min]")
     plt.grid(True)
     plt.legend()
 
     if title is None:
-        title = "Bead RPM from FFT vs motor steps/s"
+        title = "Bead RPM from FFT vs commanded motor RPM"
 
     plt.title(title)
     plt.tight_layout()
@@ -121,13 +121,13 @@ def plot_rpm_curve(rows, output_figure=None, title=None):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Batch-produce bead RPM vs motor steps/s curve."
+        description="Batch-produce bead RPM vs commanded motor RPM curve."
     )
 
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="./data/mapping_RPM_submerged/mapping_RMP3",
+        default="data/processed/mapping_RPM",
         help="Folder containing files like 5_RPM.csv.",
     )
 
@@ -178,14 +178,14 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
-        default="./data/mapping_RPM_submerged/rpm_summary.csv",
+        default="data/processed/mapping_RPM/rpm_summary.csv",
         help="Output summary CSV.",
     )
 
     parser.add_argument(
         "--figure",
         type=str,
-        default="./data/mapping_RPM_submerged/outcome/rpm_curve_bins.png",
+        default="data/processed/mapping_RPM/rpm_curve_bins.png",
         help="Output figure path. Use empty string to disable saving.",
     )
 
@@ -232,13 +232,13 @@ def main():
 
             if args.method == "bins":
                 print(
-                    f"{speed:>4} steps/s | "
+                    f"{speed:>4} motor RPM | "
                     f"{rpm:>10.4g} ± {rpm_std:>8.4g} cycles/min | "
                     f"{file_path.name}"
                 )
             else:
                 print(
-                    f"{speed:>4} steps/s | "
+                    f"{speed:>4} motor RPM | "
                     f"{rpm:>10.4g} cycles/min | "
                     f"{file_path.name}"
                 )
@@ -257,7 +257,7 @@ def main():
     plot_rpm_curve(
         rows,
         output_figure=args.figure,
-        title="Bead RPM from FFT vs motor steps/s",
+        title="Bead RPM from FFT vs commanded motor RPM",
     )
 
 

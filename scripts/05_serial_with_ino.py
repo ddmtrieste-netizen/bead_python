@@ -1,6 +1,5 @@
 import serial
 import threading
-import sys
 
 # Cosmetics
 

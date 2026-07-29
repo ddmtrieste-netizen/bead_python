@@ -19,7 +19,7 @@ from _common import (
 def main():
     parser = argparse.ArgumentParser(description="Track largest moving bead using background subtraction.")
     parser.add_argument("--camera", type=int, default=0, help="Camera index.")
-    parser.add_argument("--save", type=bool, default=0, help="Save data to CSV.")
+    parser.add_argument("--save", action="store_true", help="Save data to CSV.")
     parser.add_argument("--output", type=str, default=None, help="Output CSV path.")
 
     parser.add_argument("--history", type=int, default=500, help="MOG2 history.")

@@ -1,31 +1,45 @@
 # bead_python
 
-Python tools for bead detection, tracking, and trajectory analysis in magnetic actuation experiments based on a stepper motor stator.
+Python tools for bead detection, tracking, and trajectory analysis in magnetic
+actuation experiments based on a stepper-motor stator.
 
-## Current goal
+`v1.0.0` is the frozen experimental baseline. Maintenance fixes are developed
+on `maintenance/1.x` and will be released as `v1.0.1`.
 
-Track the position of a bead moving above a stepper motor stator and reconstruct its trajectory under different actuation, confinement, fluid, and inclination conditions.
-
-## Setup
+## Experimental setup
 
 - Camera: DELL Pro Webcam WB5023
-- Tracking method: background subtraction / Hough circle detection
-- Actuation: stepper motor stator
-- Object: magnetic or non-magnetic bead
-- Working plane: free Petri, contrained, concentric
-- Surrounding fluid: ari, water
+- Tracking: background subtraction and Hough circle detection
+- Actuation: Arduino-controlled stepper-motor stator
+- Magnetic sensing: MLX90393 through MCP2221
+- Working planes: free, constrained and concentric Petri dishes
+- Surrounding fluids: air and water
 
-## Repository structure
+## Development environment
 
-- `src/beadtrack/`: reusable tracking code
-- `scripts/`: runnable scripts
-- `experiments/`: experimental data and metadata
-- `notes/`: project notes
-- `archive/`: old exploratory scripts
+The project uses `uv`. To keep the environment and cache outside this Git
+repository in PowerShell:
 
-## Basic usage
+```powershell
+$env:UV_PROJECT_ENVIRONMENT = "..\.venv"
+$env:UV_CACHE_DIR = "..\.uv-cache"
+uv sync
+uv run pytest
+```
 
-```bash
-python scripts/track_live.py
-python scripts/record_video.py
-python scripts/plot_trajectory.py
+## Main commands
+
+```powershell
+uv run python scripts/00_check_camera.py
+uv run python scripts/02_track_moving_bead.py --save
+uv run python pipelines/Mapping_RPM_pipeline/mapping_RPM.py --serial-port COM3
+uv run python pipelines/Mapping_Hall_RPM_pipeline/mapping_hall_RPM.py --arduino-port COM3
+```
+
+RPM mapping acquisition and analysis both use
+`data/processed/mapping_RPM/`. Experimental data are intentionally ignored by
+Git and must be archived separately with their acquisition metadata.
+
+Before acquiring calibrated data, ensure that `microsteps` in
+`firmware/ino_scripts/bead_stepper_motor.ino` matches the physical driver
+configuration.

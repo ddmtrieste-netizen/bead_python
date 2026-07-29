@@ -1,4 +1,4 @@
-# Pipeline per mappare gli RPM della bilia ai RPM dello statore
+# Pipeline per mappare gli RPM della bilia agli RPM comandati allo statore
 
 **Date**: 27 Maggio 2026
 
@@ -11,7 +11,13 @@
 Generate and record trajectories [here](mapping_RPM.py) and post processing/plotting [here](graphs_RPM.py) 
 
 ### Data
-See [this](data/mapping_RPM_submerged/mapping_RMP) folder
+
+Acquisition and analysis use the same local folder:
+`data/processed/mapping_RPM/`.
+
+The numeric prefix in files such as `5_RPM.csv` is the commanded motor speed
+in RPM, not steps per second. The firmware's `microsteps` constant must match
+the physical driver setting before collecting calibrated data.
 
 ## Results
 ![RPM plot raw](rpm_curve_raw.png)
