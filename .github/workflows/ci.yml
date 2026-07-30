@@ -25,7 +25,7 @@ jobs:
 
     env:
       MPLBACKEND: Agg
-      MPLCONFIGDIR: ${{ runner.temp }}/matplotlib
+      MPLCONFIGDIR: .matplotlib-cache
 
     steps:
       - name: Check out repository
