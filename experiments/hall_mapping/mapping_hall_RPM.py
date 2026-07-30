@@ -19,6 +19,9 @@ For each imposed motor speed:
     5. save per-speed CSV
     6. save summary CSV
 
+Status:
+    Experimental. This command is not part of the v1.0.2 supported toolset.
+
 Inspired by:
     pipelines/Mapping_RPM_pipeline/mapping_RPM.py
 

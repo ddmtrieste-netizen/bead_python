@@ -1,53 +1,118 @@
-# bead_python
+# Bead tracking and magnetic actuation
 
-Python tools for bead detection, tracking, and trajectory analysis in magnetic
-actuation experiments based on a stepper-motor stator.
+Reliable command-line tools for camera checks, bead tracking, trajectory
+analysis, Arduino communication, and motor-to-bead RPM mapping.
 
-`v1.0.0` is the frozen experimental baseline. The first consolidated
-maintenance release is `v1.0.1`.
+Version `1.0.2` is a maintenance release built on the frozen `v1.0.0`
+experimental baseline. It consolidates the existing workflow without changing
+the tracking or FFT algorithms.
 
-## Experimental setup
+## Supported workflow
 
-- Camera: DELL Pro Webcam WB5023
-- Tracking: background subtraction and Hough circle detection
-- Actuation: Arduino-controlled stepper-motor stator
-- Magnetic sensing: MLX90393 through MCP2221
-- Working planes: free, constrained and concentric Petri dishes
-- Surrounding fluids: air and water
+1. Check and preview the camera.
+2. Track the moving bead and save a stable CSV dataset.
+3. Inspect the trajectory and position plots.
+4. Communicate with the Arduino motor controller.
+5. Acquire an RPM sweep and estimate bead RPM from the recorded trajectories.
 
-## Development environment
+The operational commands are documented in
+[`docs/operations.md`](docs/operations.md). Experimental alternatives are kept
+separately in [`experiments/`](experiments/README.md).
 
-The project uses `uv`. To keep the environment and cache outside this Git
-repository in PowerShell:
+## Requirements
+
+- Python 3.10 or newer
+- [`uv`](https://docs.astral.sh/uv/)
+- OpenCV-compatible camera
+- Arduino-compatible motor controller for serial and RPM mapping commands
+- Arduino CLI only when compiling the firmware
+
+The development computer may use Windows and PowerShell. Classroom acquisition
+may use Linux on Jetson; both command variants are documented.
+
+## Installation
+
+From the repository root, keep the environment and cache outside the Git
+repository.
+
+PowerShell:
 
 ```powershell
 $env:UV_PROJECT_ENVIRONMENT = "..\.venv"
 $env:UV_CACHE_DIR = "..\.uv-cache"
-uv sync
+uv sync --locked
+```
+
+Linux:
+
+```bash
+export UV_PROJECT_ENVIRONMENT="../.venv"
+export UV_CACHE_DIR="../.uv-cache"
+uv sync --locked
+```
+
+Verify the software-only release gate:
+
+```text
+uv run ruff check src scripts pipelines tests
+uv run python -m compileall -q src scripts pipelines
 uv run pytest
 ```
 
-## Main commands
+## Quick start
 
-```powershell
+Check the default camera:
+
+```text
 uv run python scripts/00_check_camera.py
+```
+
+Track and save a bead trajectory:
+
+```text
 uv run python scripts/02_track_moving_bead.py --save
-uv run python pipelines/Mapping_RPM_pipeline/mapping_RPM.py --serial-port COM3
-uv run python pipelines/Mapping_Hall_RPM_pipeline/mapping_hall_RPM.py --arduino-port COM3
 ```
 
-Compile the stepper firmware for an Arduino Uno with:
+Plot a saved trajectory:
 
-```powershell
-arduino-cli compile --fqbn arduino:avr:uno firmware/ino_scripts/bead_stepper_motor
+```text
+uv run python scripts/03_plot_tracking_csv.py --input <TRACKING_CSV>
 ```
 
-RPM mapping acquisition and analysis both use
-`data/processed/mapping_RPM/`. Experimental data are intentionally ignored by
-Git and must be archived separately with their acquisition metadata.
+Open the Arduino serial console:
 
-Before acquiring calibrated data, ensure that `microsteps` in
+```text
+uv run python scripts/05_serial_with_ino.py --port <SERIAL_PORT>
+```
+
+Use `COM3`-style serial ports on Windows and `/dev/ttyACM0`-style ports on
+Linux.
+
+## Repository structure
+
+- `scripts/`: supported, small operational commands.
+- `src/beadtrack/`: shared and tested implementation used by the commands.
+- `pipelines/`: supported multi-step acquisition and analysis workflows.
+- `firmware/`: Arduino and sensor firmware sources.
+- `experiments/`: useful but unsupported research prototypes.
+- `archive/`: historical and one-off scripts retained for reference.
+- `notes/`: internal chronological laboratory notes.
+- `tests/`: hardware-independent regression and interface tests.
+
+## Data and compatibility
+
+Tracking CSV files use the stable columns `t,x,y,radius,area`. RPM acquisition
+and analysis use `data/processed/mapping_RPM/`. Experimental data and generated
+plots are ignored by Git and must be archived separately with their acquisition
+metadata.
+
+Supported commands use tagged terminal output:
+`[INFO]`, `[OK]`, `[RESULT]`, `[WARN]`, and `[ERROR]`. Exit code `0` means a
+successful or deliberate interactive exit, `1` means a runtime or data error,
+and `2` means invalid command-line arguments.
+
+Before collecting calibrated RPM data, ensure that `microsteps` in
 `firmware/ino_scripts/bead_stepper_motor/bead_stepper_motor.ino` matches the
 physical driver configuration.
 
-See [CHANGELOG.md](CHANGELOG.md) for release details.
+See [`CHANGELOG.md`](CHANGELOG.md) for release history.

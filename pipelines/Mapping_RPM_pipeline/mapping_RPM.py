@@ -7,22 +7,22 @@ import cv2
 import numpy as np
 import serial
 
-from _common import (
+from beadtrack.camera import open_camera
+from beadtrack.console import error, info, ok, result, warn
+from beadtrack.data import save_tracking_csv
+from beadtrack.serial_io import open_serial, send_line
+from beadtrack.tracking import (
     compute_foreground_masks,
     create_background_subtractor,
     detect_largest_contour_circle,
     draw_detection,
     draw_track,
-    open_camera,
-    save_tracking_csv,
 )
 
 
-ROSSO = "\033[31m"
-VERDE = "\033[32m"
-GIALLO = "\033[33m"
-RESET = "\033[0m"
-VIOLA = "\033[35m"
+TRACKER_COMPLETED = "completed"
+TRACKER_ABORTED = "aborted"
+TRACKER_FAILED = "failed"
 
 
 def read_from_arduino(ser):
@@ -32,9 +32,9 @@ def read_from_arduino(ser):
             if ser.in_waiting > 0:
                 data = ser.readline().decode("utf-8", errors="ignore").strip()
                 if data:
-                    print(f"\n[Arduino]: {data}")
+                    info(f"Arduino: {data}")
         except Exception as exc:
-            print(f"\n{GIALLO}Arduino read error: {exc}{RESET}")
+            warn(f"Arduino read error: {exc}")
             break
 
         time.sleep(0.01)
@@ -42,10 +42,8 @@ def read_from_arduino(ser):
 
 def send_rpm_command(ser, rpm):
     """Send one RPM command using the firmware's ``<rpm>\\n`` protocol."""
-    command = f"{rpm:g}\n"
-    ser.write(command.encode("utf-8"))
-    ser.flush()
-    print(f"{VIOLA}[ARDUINO] requested RPM: {rpm:g}{RESET}")
+    send_line(ser, f"{rpm:g}")
+    info(f"Requested motor speed: {rpm:g} RPM")
 
 
 def stop_motor(ser):
@@ -54,11 +52,10 @@ def stop_motor(ser):
         return
 
     try:
-        ser.write(b"0\n")
-        ser.flush()
-        print(f"{VERDE}[ARDUINO] stop command sent.{RESET}")
+        send_line(ser, "0")
+        ok("Motor stop command sent.")
     except Exception as exc:
-        print(f"{ROSSO}[WARN] Could not send motor stop command: {exc}{RESET}")
+        warn(f"Could not send motor stop command: {exc}")
 
 
 def tracker(
@@ -70,8 +67,7 @@ def tracker(
 ):
     """Track one RPM condition.
 
-    Returns ``True`` when the sweep may continue and ``False`` when the user
-    requests a complete abort with ESC or the camera stops.
+    Return a ``TRACKER_*`` status describing the outcome.
     """
     output_dir = Path(output_dir)
     output_file = output_dir / f"{rpm:g}_RPM.csv"
@@ -90,24 +86,25 @@ def tracker(
     warmup_end = time.monotonic() + max(0.0, warmup_time_sec)
     recording_start = warmup_end
 
-    print(f"{VIOLA}[TRACKER] Warming up background model for {warmup_time_sec:g} s.")
-    print("Press q to save the current condition and continue.")
-    print(f"Press ESC to abort the complete sweep.{RESET}")
+    info(f"Warming up the background model for {warmup_time_sec:g} s.")
+    info("Press q to save this condition or ESC to abort the complete sweep.")
 
     def save_current_run():
         if not ts:
-            print(f"{GIALLO}[TRACKER] No detections to save for {rpm:g} RPM.{RESET}")
-            return
+            error(f"No bead detections were recorded at {rpm:g} RPM.")
+            return False
 
         save_tracking_csv(output_file, ts, xs, ys, radii, areas)
-        print(f"{VERDE}[TRACKER] Saved {len(ts)} points to: {output_file}{RESET}")
+        ok(f"Saved {len(ts)} points to {output_file}")
+        result(f"motor_rpm={rpm:g} detections={len(ts)} path={output_file}")
+        return True
 
     try:
         while True:
             ret, frame = cap.read()
             if not ret:
-                print(f"{ROSSO}[TRACKER] Could not read camera frame.{RESET}")
-                return False
+                error("Could not read camera frame.")
+                return TRACKER_FAILED
 
             now = time.monotonic()
             foreground, threshold, clean = compute_foreground_masks(
@@ -140,25 +137,25 @@ def tracker(
 
             key = cv2.waitKey(1) & 0xFF
             if key == 27:
-                print(f"{GIALLO}[TRACKER] ESC pressed. Aborting sweep without saving.{RESET}")
-                return False
+                warn("Sweep aborted with ESC; the current condition was not saved.")
+                return TRACKER_ABORTED
 
             if key == ord("q"):
-                save_current_run()
-                return True
+                return TRACKER_COMPLETED if save_current_run() else TRACKER_FAILED
 
             if recording and now - recording_start >= recording_time_sec:
-                save_current_run()
-                return True
+                return TRACKER_COMPLETED if save_current_run() else TRACKER_FAILED
     finally:
         cv2.destroyAllWindows()
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(
-        description="Map commanded motor RPM to bead trajectory."
+    parser = argparse.ArgumentParser(description="Map commanded motor RPM to bead trajectory.")
+    parser.add_argument(
+        "--serial-port",
+        required=True,
+        help="Arduino port, for example COM3 or /dev/ttyACM0.",
     )
-    parser.add_argument("--serial-port", default="/dev/ttyACM0")
     parser.add_argument("--baud", type=int, default=9600)
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--rpm-start", type=int, default=1)
@@ -171,21 +168,29 @@ def build_parser():
     return parser
 
 
-def main():
-    args = build_parser().parse_args()
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
     if args.rpm_step <= 0:
-        raise ValueError("--rpm-step must be positive.")
+        parser.error("--rpm-step must be positive.")
     if args.rpm_stop < args.rpm_start:
-        raise ValueError("--rpm-stop must be greater than or equal to --rpm-start.")
+        parser.error("--rpm-stop must be greater than or equal to --rpm-start.")
     if args.duration <= 0:
-        raise ValueError("--duration must be positive.")
+        parser.error("--duration must be positive.")
+    if args.settle < 0:
+        parser.error("--settle cannot be negative.")
+    if args.warmup < 0:
+        parser.error("--warmup cannot be negative.")
+    if args.baud <= 0:
+        parser.error("--baud must be positive.")
 
     ser = None
     cap = None
+    completed_conditions = 0
 
     try:
-        ser = serial.Serial(args.serial_port, args.baud, timeout=1)
-        print(f"{VERDE}Connected to {args.serial_port} at {args.baud} baud.{RESET}")
+        ser = open_serial(args.serial_port, args.baud, timeout=1)
+        ok(f"Connected to {args.serial_port} at {args.baud} baud.")
 
         read_thread = threading.Thread(
             target=read_from_arduino,
@@ -200,20 +205,28 @@ def main():
             if args.settle > 0:
                 time.sleep(args.settle)
 
-            continue_sweep = tracker(
+            tracker_status = tracker(
                 cap=cap,
                 rpm=rpm,
                 recording_time_sec=args.duration,
                 output_dir=args.output_dir,
                 warmup_time_sec=args.warmup,
             )
-            if not continue_sweep:
+            if tracker_status == TRACKER_ABORTED:
                 break
+            if tracker_status == TRACKER_FAILED:
+                return 1
+            completed_conditions += 1
 
     except serial.SerialException as exc:
-        print(f"{ROSSO}Serial connection error: {exc}{RESET}")
+        error(f"Serial connection error: {exc}")
+        return 1
+    except (OSError, RuntimeError, cv2.error) as exc:
+        error(str(exc))
+        return 1
     except KeyboardInterrupt:
-        print(f"\n{GIALLO}Interrupted by user.{RESET}")
+        warn("Sweep interrupted by user.")
+        return 0
     finally:
         stop_motor(ser)
         if cap is not None:
@@ -221,8 +234,11 @@ def main():
         cv2.destroyAllWindows()
         if ser is not None and ser.is_open:
             ser.close()
-        print("Serial port closed.")
+            ok("Serial port closed.")
+
+    result(f"completed_conditions={completed_conditions} output_dir={args.output_dir}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

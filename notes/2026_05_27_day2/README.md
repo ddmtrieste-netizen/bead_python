@@ -1,2 +1,5 @@
-# Day 2 Update 
-## 27 May 2026
+# Day 2 update
+
+**Data:** 27 maggio 2026
+
+Nessuna nota aggiuntiva registrata.

@@ -8,6 +8,8 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 
+from beadtrack.console import error, info, ok, result as console_result, warn
+
 from graphs_RPM import analyze_single_file, apply_screen_scale
 
 
@@ -70,7 +72,7 @@ def save_summary_csv(output_file, rows):
             writer.writerow(row)
 
 
-def plot_rpm_curve(rows, output_figure=None, title=None):
+def plot_rpm_curve(rows, output_figure=None, title=None, show=True):
     motor_rpm = np.asarray([row["motor_rpm_command"] for row in rows], dtype=float)
     bead_rpm = np.asarray([row["bead_rpm_fft"] for row in rows], dtype=float)
     bead_rpm_std = np.asarray([row["bead_rpm_fft_std"] for row in rows], dtype=float)
@@ -114,12 +116,13 @@ def plot_rpm_curve(rows, output_figure=None, title=None):
         output_figure = Path(output_figure)
         output_figure.parent.mkdir(parents=True, exist_ok=True)
         plt.savefig(output_figure, dpi=200)
-        print(f"Saved figure to: {output_figure}")
+        ok(f"Saved figure to {output_figure}")
 
-    plt.show()
+    if show:
+        plt.show()
 
 
-def main():
+def build_parser():
     parser = argparse.ArgumentParser(
         description="Batch-produce bead RPM vs commanded motor RPM curve."
     )
@@ -188,26 +191,42 @@ def main():
         default="data/processed/mapping_RPM/rpm_curve_bins.png",
         help="Output figure path. Use empty string to disable saving.",
     )
+    parser.add_argument(
+        "--no-show",
+        action="store_true",
+        help="Do not open an interactive plot window.",
+    )
+    return parser
 
-    args = parser.parse_args()
+
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.scale <= 0:
+        parser.error("--scale must be positive.")
+    if args.bin_sec <= 0:
+        parser.error("--bin-sec must be positive.")
+    if args.fmax is not None and args.fmax <= args.fmin:
+        parser.error("--fmax must be greater than --fmin.")
 
     if args.figure == "":
         args.figure = None
 
-    apply_screen_scale(args.scale)
-
-    files = find_speed_files(args.data_dir)
+    try:
+        apply_screen_scale(args.scale)
+        files = find_speed_files(args.data_dir)
+    except (OSError, ValueError) as exc:
+        error(str(exc))
+        return 1
 
     if len(files) == 0:
-        print(f"No *_RPM.csv files found in: {args.data_dir}")
-        return
+        error(f"No *_RPM.csv files found in {args.data_dir}")
+        return 1
 
-    print("Producing RPM curve...")
-    print(f"data_dir = {args.data_dir}")
-    print(f"method   = {args.method}")
-    print(f"signal   = {args.signal}")
-    print(f"n_files  = {len(files)}")
-    print("")
+    info(
+        f"Producing RPM curve: data_dir={args.data_dir} method={args.method} "
+        f"signal={args.signal} files={len(files)}"
+    )
 
     rows = []
 
@@ -231,35 +250,38 @@ def main():
             rpm_std = result["bead_rpm_fft_std"]
 
             if args.method == "bins":
-                print(
+                info(
                     f"{speed:>4} motor RPM | "
-                    f"{rpm:>10.4g} ± {rpm_std:>8.4g} cycles/min | "
+                    f"{rpm:>10.4g} +/- {rpm_std:>8.4g} cycles/min | "
                     f"{file_path.name}"
                 )
             else:
-                print(
-                    f"{speed:>4} motor RPM | "
-                    f"{rpm:>10.4g} cycles/min | "
-                    f"{file_path.name}"
-                )
+                info(f"{speed:>4} motor RPM | {rpm:>10.4g} cycles/min | {file_path.name}")
 
         except Exception as exc:
-            print(f"Skipping {file_path.name}: {exc}")
+            warn(f"Skipping {file_path.name}: {exc}")
 
     if len(rows) == 0:
-        print("No valid files analyzed.")
-        return
+        error("No valid RPM files were analyzed.")
+        return 1
 
-    save_summary_csv(args.output, rows)
-    print("")
-    print(f"Saved summary to: {args.output}")
-
-    plot_rpm_curve(
-        rows,
-        output_figure=args.figure,
-        title="Bead RPM from FFT vs commanded motor RPM",
-    )
+    try:
+        save_summary_csv(args.output, rows)
+        ok(f"Saved summary to {args.output}")
+        plot_rpm_curve(
+            rows,
+            output_figure=args.figure,
+            title="Bead RPM from FFT vs commanded motor RPM",
+            show=not args.no_show,
+        )
+        console_result(f"files_analyzed={len(rows)} summary={args.output}")
+        return 0
+    except (OSError, RuntimeError, ValueError) as exc:
+        error(str(exc))
+        return 1
+    finally:
+        plt.close("all")
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

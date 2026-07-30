@@ -2,41 +2,22 @@
 
 import argparse
 import csv
-import sys
 from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
+
+from beadtrack.console import error, ok, result as console_result, warn
+from beadtrack.data import load_tracking_csv
 
 
 # =============================================================================
 # IO
 # =============================================================================
 
+
 def load_csv(filename):
-    t = []
-    x = []
-    y = []
-    radius = []
-    area = []
-
-    with open(filename, "r", newline="") as f:
-        reader = csv.DictReader(f)
-
-        for row in reader:
-            t.append(float(row["t"]))
-            x.append(float(row["x"]))
-            y.append(float(row["y"]))
-            radius.append(float(row["radius"]))
-            area.append(float(row["area"]))
-
-    return (
-        np.asarray(t, dtype=float),
-        np.asarray(x, dtype=float),
-        np.asarray(y, dtype=float),
-        np.asarray(radius, dtype=float),
-        np.asarray(area, dtype=float),
-    )
+    return tuple(np.asarray(values, dtype=float) for values in load_tracking_csv(filename))
 
 
 def get_file_from_speed(data_dir, speed):
@@ -70,22 +51,26 @@ def write_single_result_csv(output_file, result):
 # Plot style
 # =============================================================================
 
+
 def apply_screen_scale(scale):
-    plt.rcParams.update({
-        "font.size": 14 * scale,
-        "axes.titlesize": 18 * scale,
-        "axes.labelsize": 16 * scale,
-        "xtick.labelsize": 13 * scale,
-        "ytick.labelsize": 13 * scale,
-        "legend.fontsize": 13 * scale,
-        "lines.linewidth": 2.0 * scale,
-        "grid.linewidth": 0.8 * scale,
-    })
+    plt.rcParams.update(
+        {
+            "font.size": 14 * scale,
+            "axes.titlesize": 18 * scale,
+            "axes.labelsize": 16 * scale,
+            "xtick.labelsize": 13 * scale,
+            "ytick.labelsize": 13 * scale,
+            "legend.fontsize": 13 * scale,
+            "lines.linewidth": 2.0 * scale,
+            "grid.linewidth": 0.8 * scale,
+        }
+    )
 
 
 # =============================================================================
 # Signal utilities
 # =============================================================================
+
 
 def select_signal(signal_name, x, y, radius):
     if signal_name == "x":
@@ -120,6 +105,7 @@ def clean_and_sort_time_signal(t, signal):
 # =============================================================================
 # FFT core
 # =============================================================================
+
 
 def estimate_fft_raw(t, signal, fmin=0.0, fmax=None):
     """
@@ -221,14 +207,16 @@ def compute_bin_ffts(t, signal, bin_sec=20.0, fmin=0.0, fmax=None):
         )
 
         if np.isfinite(rpm):
-            bins.append({
-                "start": t0,
-                "end": t1,
-                "rpm": rpm,
-                "freq_hz": freq_hz,
-                "freqs": freqs,
-                "spectrum": spectrum,
-            })
+            bins.append(
+                {
+                    "start": t0,
+                    "end": t1,
+                    "rpm": rpm,
+                    "freq_hz": freq_hz,
+                    "freqs": freqs,
+                    "spectrum": spectrum,
+                }
+            )
 
         return bins
 
@@ -247,14 +235,16 @@ def compute_bin_ffts(t, signal, bin_sec=20.0, fmin=0.0, fmax=None):
             )
 
             if np.isfinite(rpm):
-                bins.append({
-                    "start": start,
-                    "end": end,
-                    "rpm": rpm,
-                    "freq_hz": freq_hz,
-                    "freqs": freqs,
-                    "spectrum": spectrum,
-                })
+                bins.append(
+                    {
+                        "start": start,
+                        "end": end,
+                        "rpm": rpm,
+                        "freq_hz": freq_hz,
+                        "freqs": freqs,
+                        "spectrum": spectrum,
+                    }
+                )
 
         start = end
 
@@ -349,6 +339,7 @@ def aggregate_bin_spectra(bins, aggregate="mean"):
 # Atomic analysis: one file
 # =============================================================================
 
+
 def analyze_single_file(
     speed=None,
     data_dir="data/processed/mapping_RPM",
@@ -427,11 +418,11 @@ def analyze_single_file(
 # Modes
 # =============================================================================
 
+
 def run_explore(args):
     """
-    Modalità esplorativa.
-    Volutamente semplice:
-        - traiettoria x-y
+    Exploratory mode:
+        - x-y trajectory
         - x(t), y(t)
     """
 
@@ -441,14 +432,12 @@ def run_explore(args):
     file_path = get_file_from_speed(args.data_dir, args.speed)
 
     if not file_path.exists():
-        print(f"File not found: {file_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"File not found: {file_path}")
 
     t, x, y, radius, area = load_csv(file_path)
 
     if len(t) == 0:
-        print(f"No data found for {file_path}.")
-        return
+        raise ValueError(f"No data found for {file_path}.")
 
     plt.figure(figsize=(14, 8))
     plt.plot(x, y)
@@ -470,12 +459,12 @@ def run_explore(args):
     plt.tight_layout()
 
     plt.show()
+    console_result(f"mode=explore motor_rpm={args.speed} points={len(t)} file={file_path}")
 
 
 def run_produce(args):
     """
-    Modalità produce.
-    Analizza un solo file e mostra la diagnostica FFT.
+    Analyze one file and optionally show its FFT diagnostics.
     """
 
     if args.speed is None:
@@ -484,14 +473,12 @@ def run_produce(args):
     file_path = get_file_from_speed(args.data_dir, args.speed)
 
     if not file_path.exists():
-        print(f"File not found: {file_path}")
-        sys.exit(1)
+        raise FileNotFoundError(f"File not found: {file_path}")
 
     t, x, y, radius, area = load_csv(file_path)
 
     if len(t) == 0:
-        print(f"No data found for {file_path}.")
-        sys.exit(1)
+        raise ValueError(f"No data found for {file_path}.")
 
     signal = select_signal(args.signal, x, y, radius)
 
@@ -508,8 +495,7 @@ def run_produce(args):
     bead_rpm = result["bead_rpm_fft"]
     bead_rpm_std = result["bead_rpm_fft_std"]
 
-    print(
-        "RESULT "
+    console_result(
         f"motor_rpm_command={result['motor_rpm_command']} "
         f"bead_rpm_fft={bead_rpm:.6g} "
         f"bead_rpm_fft_std={bead_rpm_std:.6g} "
@@ -521,7 +507,7 @@ def run_produce(args):
 
     if args.output is not None:
         write_single_result_csv(args.output, result)
-        print(f"Saved single-result CSV to: {args.output}")
+        ok(f"Saved single-result CSV to {args.output}")
 
     if args.no_show:
         return
@@ -540,8 +526,7 @@ def run_produce(args):
         plt.ylabel("FFT amplitude")
         plt.grid(True)
         plt.title(
-            f"Raw FFT | speed = {args.speed} | "
-            f"peak = {freq_hz:.4g} Hz = {rpm:.4g} cycles/min"
+            f"Raw FFT | speed = {args.speed} | peak = {freq_hz:.4g} Hz = {rpm:.4g} cycles/min"
         )
         plt.tight_layout()
 
@@ -555,8 +540,7 @@ def run_produce(args):
         )
 
         if len(bins) == 0:
-            print("No valid bins found.")
-            return
+            raise ValueError("No valid FFT bins found.")
 
         bin_rpms = np.asarray([b["rpm"] for b in bins], dtype=float)
         bin_starts = np.asarray([b["start"] - bins[0]["start"] for b in bins], dtype=float)
@@ -600,7 +584,7 @@ def run_produce(args):
             plt.tight_layout()
 
         else:
-            print("No valid aggregated binned spectrum.")
+            warn("No valid aggregated binned spectrum.")
 
     plt.show()
 
@@ -609,7 +593,8 @@ def run_produce(args):
 # Main
 # =============================================================================
 
-def main():
+
+def build_parser():
     parser = argparse.ArgumentParser(
         description="Explore one run or produce FFT RPM estimate for one file."
     )
@@ -701,19 +686,32 @@ def main():
         help="Do not show plots. Useful when called by automatic_produce.py.",
     )
 
-    args = parser.parse_args()
+    return parser
 
-    apply_screen_scale(args.scale)
 
-    if args.mode == "explore":
-        run_explore(args)
+def main(argv=None):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.scale <= 0:
+        parser.error("--scale must be positive.")
+    if args.bin_sec <= 0:
+        parser.error("--bin-sec must be positive.")
+    if args.fmax is not None and args.fmax <= args.fmin:
+        parser.error("--fmax must be greater than --fmin.")
 
-    elif args.mode == "produce":
-        run_produce(args)
-
-    else:
-        raise ValueError(f"Unknown mode: {args.mode}")
+    try:
+        apply_screen_scale(args.scale)
+        if args.mode == "explore":
+            run_explore(args)
+        else:
+            run_produce(args)
+        return 0
+    except (OSError, RuntimeError, ValueError) as exc:
+        error(str(exc))
+        return 1
+    finally:
+        plt.close("all")
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

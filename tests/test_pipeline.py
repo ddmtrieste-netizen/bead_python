@@ -1,25 +1,20 @@
 import csv
 import importlib.util
-import os
-import sys
-import tempfile
 from pathlib import Path
 
 import numpy as np
 import pytest
+import serial
 
 
 ROOT = Path(__file__).resolve().parents[1]
-os.environ.setdefault(
-    "MPLCONFIGDIR",
-    str(Path(tempfile.gettempdir()) / "bead_python_matplotlib"),
-)
 
 
 def load_module(name, relative_path, import_dir=None):
+    import sys
+
     if import_dir is not None:
         sys.path.insert(0, str(ROOT / import_dir))
-
     try:
         spec = importlib.util.spec_from_file_location(name, ROOT / relative_path)
         module = importlib.util.module_from_spec(spec)
@@ -30,33 +25,10 @@ def load_module(name, relative_path, import_dir=None):
             sys.path.pop(0)
 
 
-def test_hall_fft_preserves_rotation_direction():
-    hall = load_module(
-        "mapping_hall_rpm",
-        "pipelines/Mapping_Hall_RPM_pipeline/mapping_hall_RPM.py",
-    )
-    time_s = np.linspace(0.0, 4.0, 400, endpoint=False)
-
-    positive = hall.estimate_rotation_from_fft(
-        time_s,
-        np.cos(2.0 * np.pi * time_s),
-        np.sin(2.0 * np.pi * time_s),
-    )
-    negative = hall.estimate_rotation_from_fft(
-        time_s,
-        np.cos(-2.0 * np.pi * time_s),
-        np.sin(-2.0 * np.pi * time_s),
-    )
-
-    assert positive["fft_rpm"] == pytest.approx(60.0)
-    assert negative["fft_rpm"] == pytest.approx(-60.0)
-
-
-def test_tracker_handles_a_run_without_detections(monkeypatch, tmp_path):
+def test_tracker_rejects_condition_without_detections(monkeypatch, tmp_path):
     mapping = load_module(
-        "mapping_rpm",
+        "mapping_rpm_empty",
         "pipelines/Mapping_RPM_pipeline/mapping_RPM.py",
-        import_dir="pipelines/Mapping_RPM_pipeline",
     )
 
     class FakeCamera:
@@ -73,14 +45,18 @@ def test_tracker_handles_a_run_without_detections(monkeypatch, tmp_path):
             np.zeros((10, 10), dtype=np.uint8),
         ),
     )
-    monkeypatch.setattr(mapping, "detect_largest_contour_circle", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        mapping,
+        "detect_largest_contour_circle",
+        lambda *args, **kwargs: None,
+    )
     monkeypatch.setattr(mapping, "draw_detection", lambda frame, detection: frame)
     monkeypatch.setattr(mapping, "draw_track", lambda frame, xs, ys: frame)
     monkeypatch.setattr(mapping.cv2, "imshow", lambda *args: None)
     monkeypatch.setattr(mapping.cv2, "waitKey", lambda delay: ord("q"))
     monkeypatch.setattr(mapping.cv2, "destroyAllWindows", lambda: None)
 
-    continue_sweep = mapping.tracker(
+    status = mapping.tracker(
         cap=FakeCamera(),
         rpm=5,
         recording_time_sec=1.0,
@@ -88,7 +64,7 @@ def test_tracker_handles_a_run_without_detections(monkeypatch, tmp_path):
         warmup_time_sec=0.0,
     )
 
-    assert continue_sweep is True
+    assert status == mapping.TRACKER_FAILED
     assert not list(tmp_path.glob("*.csv"))
 
 
@@ -96,7 +72,6 @@ def test_motor_stop_command_is_always_zero_rpm():
     mapping = load_module(
         "mapping_rpm_stop",
         "pipelines/Mapping_RPM_pipeline/mapping_RPM.py",
-        import_dir="pipelines/Mapping_RPM_pipeline",
     )
 
     class FakeSerial:
@@ -115,6 +90,32 @@ def test_motor_stop_command_is_always_zero_rpm():
     mapping.stop_motor(serial_port)
 
     assert serial_port.writes == [b"0\n"]
+
+
+def test_pipeline_reports_serial_open_failure(monkeypatch):
+    mapping = load_module(
+        "mapping_rpm_serial_error",
+        "pipelines/Mapping_RPM_pipeline/mapping_RPM.py",
+    )
+
+    def fail(*args, **kwargs):
+        raise serial.SerialException("not available")
+
+    monkeypatch.setattr(mapping, "open_serial", fail)
+
+    assert mapping.main(["--serial-port", "COM3"]) == 1
+
+
+def test_pipeline_requires_an_explicit_serial_port():
+    mapping = load_module(
+        "mapping_rpm_parser",
+        "pipelines/Mapping_RPM_pipeline/mapping_RPM.py",
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        mapping.main([])
+
+    assert exc.value.code == 2
 
 
 def test_rpm_analysis_reports_motor_command_in_rpm(tmp_path):
