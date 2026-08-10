@@ -12,6 +12,7 @@ COMMANDS = [
     "scripts/01_view_camera.py",
     "scripts/02_track_moving_bead.py",
     "scripts/03_plot_tracking_csv.py",
+    "scripts/04_tune_bead_tracking.py",
     "scripts/05_serial_with_ino.py",
     "pipelines/Mapping_RPM_pipeline/mapping_RPM.py",
     "pipelines/Mapping_RPM_pipeline/graphs_RPM.py",

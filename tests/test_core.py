@@ -7,7 +7,7 @@ import pytest
 from beadtrack.camera import open_camera, read_frame_or_raise
 from beadtrack.data import load_tracking_csv, save_tracking_csv
 from beadtrack.serial_io import send_line
-from beadtrack.tracking import detect_largest_contour_circle
+from beadtrack.tracking import compute_foreground_masks, detect_largest_contour_circle
 
 
 def test_open_camera_applies_properties(monkeypatch):
@@ -114,6 +114,54 @@ def test_detect_largest_contour_circle():
     assert detection["x"] == pytest.approx(70, abs=1)
     assert detection["y"] == pytest.approx(70, abs=1)
     assert detection["radius"] == pytest.approx(10, abs=1)
+
+
+def test_foreground_masks_control_learning_rate_and_shadow_threshold():
+    class FakeBackgroundSubtractor:
+        learning_rate = None
+
+        def apply(self, _frame, learningRate=None):
+            self.learning_rate = learningRate
+            return np.array([[0, 127, 255]], dtype=np.uint8)
+
+    subtractor = FakeBackgroundSubtractor()
+    frame = np.zeros((1, 3, 3), dtype=np.uint8)
+
+    foreground, threshold, clean = compute_foreground_masks(
+        frame,
+        subtractor,
+        threshold_value=127,
+        kernel_size=1,
+        dilation_iterations=0,
+        learning_rate=0.0,
+    )
+
+    assert subtractor.learning_rate == 0.0
+    assert foreground.tolist() == [[0, 127, 255]]
+    assert threshold.tolist() == [[0, 0, 255]]
+    assert clean.tolist() == [[0, 0, 255]]
+
+
+def test_foreground_masks_preserve_automatic_learning_call():
+    class FakeBackgroundSubtractor:
+        called = False
+
+        def apply(self, _frame):
+            self.called = True
+            return np.array([[0, 127, 255]], dtype=np.uint8)
+
+    subtractor = FakeBackgroundSubtractor()
+
+    _foreground, threshold, _clean = compute_foreground_masks(
+        np.zeros((1, 3, 3), dtype=np.uint8),
+        subtractor,
+        threshold_value=120,
+        kernel_size=1,
+        dilation_iterations=0,
+    )
+
+    assert subtractor.called is True
+    assert threshold.tolist() == [[0, 255, 255]]
 
 
 def test_send_line_uses_newline_and_flushes():

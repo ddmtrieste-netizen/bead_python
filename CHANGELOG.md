@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.1.0 - 2026-08-10
+
+Feature release for scientific inspection and tuning of bead tracking.
+
+### Added
+
+- Add a single-window diagnostic dashboard showing the annotated live camera,
+  current MOG2 background, raw foreground, and final detection mask.
+- Add realtime controls for background learning, MOG2 sensitivity, mask
+  threshold, dilation, and minimum contour area.
+- Add keyboard controls to freeze, reset, and reinitialize the background model
+  with or without MOG2 shadow detection.
+
+### Changed
+
+- Let the shared foreground-mask helper accept an optional OpenCV learning rate
+  without changing the automatic behavior used by the acquisition script.
+- Document the MOG2 background, shadow, and foreground values and clarify that
+  the existing threshold of 120 includes the standard shadow value of 127.
+
+### Validation
+
+- Add hardware-independent tests for learning-rate control, shadow thresholding,
+  dashboard composition, and the new command-line interface.
+
 ## 1.0.2 - 2026-07-30
 
 Maintenance release focused on operational clarity and software-only

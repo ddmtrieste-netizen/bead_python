@@ -23,9 +23,26 @@ def compute_foreground_masks(
     threshold_value=120,
     kernel_size=3,
     dilation_iterations=2,
+    learning_rate=None,
 ):
-    """Return raw, thresholded, and dilated foreground masks."""
-    foreground = bg_subtractor.apply(frame)
+    """Return the exact MOG2 masks used by contour detection.
+
+    ``learning_rate=None`` preserves OpenCV's automatic learning rate. Pass
+    ``0.0`` to freeze an initialized model or a value in ``(0, 1]`` to
+    control adaptation explicitly.
+
+    With MOG2 shadow detection enabled, the raw mask normally encodes
+    background as 0, shadows as 127, and foreground as 255. Consequently, a
+    binary threshold below 127 includes shadows while a threshold of 127 or
+    greater excludes them.
+    """
+    if learning_rate is None:
+        foreground = bg_subtractor.apply(frame)
+    else:
+        foreground = bg_subtractor.apply(
+            frame,
+            learningRate=float(learning_rate),
+        )
     _, threshold = cv2.threshold(
         foreground.copy(),
         int(threshold_value),

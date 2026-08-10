@@ -30,7 +30,12 @@ def build_parser():
         default=100,
         help="MOG2 variance threshold.",
     )
-    parser.add_argument("--threshold", type=int, default=120, help="Binary threshold.")
+    parser.add_argument(
+        "--threshold",
+        type=int,
+        default=120,
+        help="MOG2 mask threshold; 120 includes the standard shadow value 127.",
+    )
     parser.add_argument("--kernel", type=int, default=3, help="Morphological kernel size.")
     parser.add_argument("--dilate", type=int, default=2, help="Dilation iterations.")
     parser.add_argument("--min-area", type=float, default=50, help="Minimum contour area.")

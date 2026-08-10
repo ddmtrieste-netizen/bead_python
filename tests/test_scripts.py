@@ -117,6 +117,23 @@ def test_plot_command_rejects_invalid_csv(tmp_path):
     assert module.main(["--input", str(source)]) == 1
 
 
+def test_diagnostic_tracker_learning_modes_and_dashboard():
+    module = load_script("tune_bead_tracking", "scripts/04_tune_bead_tracking.py")
+
+    assert module.resolve_learning_rate(0, frozen=False) == (None, "AUTO")
+    assert module.resolve_learning_rate(10, frozen=False) == (0.001, "MANUAL 0.0010")
+    assert module.resolve_learning_rate(10, frozen=True) == (
+        0.0,
+        "FROZEN (learning rate 0)",
+    )
+
+    live = np.zeros((20, 30, 3), dtype=np.uint8)
+    mask = np.zeros((20, 30), dtype=np.uint8)
+    dashboard = module.compose_dashboard(live, None, mask, mask, panel_width=60)
+
+    assert dashboard.shape == (80, 120, 3)
+
+
 def test_serial_console_sends_command_and_closes(monkeypatch):
     module = load_script("serial_console", "scripts/05_serial_with_ino.py")
 

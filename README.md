@@ -3,9 +3,9 @@
 Reliable command-line tools for camera checks, bead tracking, trajectory
 analysis, Arduino communication, and motor-to-bead RPM mapping.
 
-Version `1.0.2` is a maintenance release built on the frozen `v1.0.0`
-experimental baseline. It consolidates the existing workflow without changing
-the tracking or FFT algorithms.
+Version `1.1.0` adds an interactive diagnostic dashboard for the existing
+single-bead tracking pipeline while preserving the acquisition and FFT
+algorithms.
 
 ## Supported workflow
 
@@ -77,6 +77,12 @@ Plot a saved trajectory:
 
 ```text
 uv run python scripts/03_plot_tracking_csv.py --input <TRACKING_CSV>
+```
+
+Tune and validate the exact tracking masks in one interactive dashboard:
+
+```text
+uv run python scripts/04_tune_bead_tracking.py
 ```
 
 Open the Arduino serial console:

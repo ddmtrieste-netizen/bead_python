@@ -106,6 +106,35 @@ uv run python scripts/03_plot_tracking_csv.py --input <CSV> --save <PNG>
 The command rejects missing columns, empty files, and non-numeric values with
 exit code `1`.
 
+## 04 — Tune bead tracking
+
+Purpose: inspect and tune the same MOG2 and contour pipeline used by script 02
+without recording scientific data.
+
+```text
+uv run python scripts/04_tune_bead_tracking.py
+```
+
+The single dashboard shows the annotated live camera, current MOG2 background,
+raw MOG2 foreground, and final mask passed to contour detection. Trackbars tune
+the learning rate, MOG2 variance threshold, mask threshold, dilation, and
+minimum contour area.
+
+Controls:
+
+- `SPACE`: freeze or resume background learning.
+- `r`: reinitialize the background model.
+- `s`: toggle MOG2 shadow detection and reinitialize the model.
+- `c`: clear the displayed trajectory.
+- `q` or `ESC`: close the diagnostic tool.
+
+With shadow detection enabled, the raw MOG2 mask normally contains background
+`0`, shadows `127`, and foreground `255`. The default mask threshold `120`
+therefore includes shadows, matching script 02. Set the threshold to `127` or
+higher to exclude them. Learning position `0` selects OpenCV automatic learning;
+positive positions select an explicit rate, and freezing overrides either mode
+with learning rate `0`.
+
 ## 05 — Arduino serial console
 
 Purpose: send newline-terminated commands to Arduino and display its replies.
