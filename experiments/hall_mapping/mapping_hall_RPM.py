@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Map imposed Arduino motor speed to measured magnetic-field rotation speed.
+Map commanded motor RPM to measured magnetic-field rotation speed.
 
 Architecture:
     Jetson/PC
@@ -18,6 +18,9 @@ For each imposed motor speed:
            b) FFT of complex signal By + i Bz
     5. save per-speed CSV
     6. save summary CSV
+
+Status:
+    Experimental. This command is not part of the v1.0.2 supported toolset.
 
 Inspired by:
     pipelines/Mapping_RPM_pipeline/mapping_RPM.py
@@ -123,6 +126,18 @@ def send_speed_command(ser, speed, command_template):
     ser.write(command.encode("utf-8"))
     ser.flush()
     msg("ARDUINO", f"sent command: {command.strip()}", VIOLA)
+
+
+def stop_motor(ser, command_template):
+    """Best-effort stop that never masks an acquisition error."""
+    if ser is None or not ser.is_open:
+        return
+
+    try:
+        send_speed_command(ser, 0, command_template)
+        msg("OK", "Motor stop command sent.", VERDE)
+    except Exception as exc:
+        msg("WARN", f"Could not send motor stop command: {exc}", GIALLO)
 
 
 # =============================================================================
@@ -248,12 +263,12 @@ def acquire_field(mcp, speed, duration_s, dt_s, wait_s, baseline):
 
     msg("TRACKER", f"Magnetic acquisition started for speed={speed}.", VIOLA)
 
-    t0 = time.time()
+    t0 = time.monotonic()
     sample_id = 0
     skipped = 0
 
     while True:
-        loop_start = time.time()
+        loop_start = time.monotonic()
         t = loop_start - t0
 
         if t >= duration_s:
@@ -301,14 +316,14 @@ def acquire_field(mcp, speed, duration_s, dt_s, wait_s, baseline):
             print()
             msg("WARN", f"Sample skipped: {type(exc).__name__}: {exc}", GIALLO)
 
-        elapsed = time.time() - loop_start
+        elapsed = time.monotonic() - loop_start
         time.sleep(max(0.0, dt_s - elapsed))
 
     print()
     msg("OK", f"Acquired {len(t_data)} valid samples for speed={speed}. Skipped {skipped}.", VERDE)
 
     return {
-        "speed_cmd": speed,
+        "motor_rpm_command": speed,
         "t": np.asarray(t_data, dtype=float),
         "bx": np.asarray(bx_data, dtype=float),
         "by": np.asarray(by_data, dtype=float),
@@ -406,8 +421,10 @@ def estimate_rotation_from_fft(t, by, bz):
     freqs = np.fft.fftfreq(n, d=dt_uniform)
     Q = np.fft.fft(q)
 
-    # Ignore DC and use positive frequencies only.
-    mask = freqs > 0
+    # The sign carries the direction of rotation for q = By + i*Bz.
+    # Looking only at positive frequencies produces a false high-frequency
+    # peak when the field rotates in the opposite direction.
+    mask = freqs != 0
 
     if not np.any(mask):
         return {
@@ -416,13 +433,13 @@ def estimate_rotation_from_fft(t, by, bz):
             "fft_peak_amp": np.nan,
         }
 
-    freqs_pos = freqs[mask]
-    amp_pos = np.abs(Q[mask])
+    freqs_selected = freqs[mask]
+    amplitudes_selected = np.abs(Q[mask])
 
-    idx = int(np.argmax(amp_pos))
-    hz = float(freqs_pos[idx])
+    idx = int(np.argmax(amplitudes_selected))
+    hz = float(freqs_selected[idx])
     rpm = hz * 60.0
-    peak_amp = float(amp_pos[idx])
+    peak_amp = float(amplitudes_selected[idx])
 
     return {
         "fft_hz": hz,
@@ -446,7 +463,7 @@ def analyze_run(data):
         effective_fs = np.nan
 
     summary = {
-        "speed_cmd": data["speed_cmd"],
+        "motor_rpm_command": data["motor_rpm_command"],
         "n_samples": len(t),
         "skipped": data["skipped"],
         "duration_actual_s": float(t[-1] - t[0]) if len(t) >= 2 else np.nan,
@@ -479,7 +496,7 @@ def save_run_csv(path, data):
 
         writer.writerow([
             "time_s",
-            "speed_cmd",
+            "motor_rpm_command",
             "Bx_raw_plane",
             "By_raw_plane",
             "Bz_raw_plane",
@@ -494,7 +511,7 @@ def save_run_csv(path, data):
         for i in range(len(data["t"])):
             writer.writerow([
                 f"{data['t'][i]:.6f}",
-                data["speed_cmd"],
+                data["motor_rpm_command"],
                 f"{data['bx'][i]:.6f}",
                 f"{data['by'][i]:.6f}",
                 f"{data['bz'][i]:.6f}",
@@ -535,18 +552,18 @@ def plot_summary(summaries, output_dir=None):
     if not summaries:
         return
 
-    speeds = np.asarray([s["speed_cmd"] for s in summaries], dtype=float)
+    speeds = np.asarray([s["motor_rpm_command"] for s in summaries], dtype=float)
     theta_rpm = np.asarray([s["theta_rpm"] for s in summaries], dtype=float)
     fft_rpm = np.asarray([s["fft_rpm"] for s in summaries], dtype=float)
     rho_mean = np.asarray([s["rho_mean"] for s in summaries], dtype=float)
     rho_std = np.asarray([s["rho_std"] for s in summaries], dtype=float)
     r2 = np.asarray([s["theta_r2"] for s in summaries], dtype=float)
 
-    # Plot 1: imposed speed vs measured field RPM
+    # Plot 1: commanded motor RPM vs measured field RPM
     plt.figure(figsize=(14, 8))
     plt.plot(speeds, theta_rpm, "o-", label="theta-slope estimate")
     plt.plot(speeds, fft_rpm, "s-", label="FFT estimate")
-    plt.xlabel("Arduino imposed speed")
+    plt.xlabel("commanded motor speed [RPM]")
     plt.ylabel("measured field rotation [rpm]")
     plt.title("Magnetic field rotation vs imposed motor speed")
     plt.grid(True)
@@ -561,7 +578,7 @@ def plot_summary(summaries, output_dir=None):
     # Plot 2: mean field intensity vs speed
     plt.figure(figsize=(14, 8))
     plt.errorbar(speeds, rho_mean, yerr=rho_std, fmt="o-", capsize=4, label="rho_yz")
-    plt.xlabel("Arduino imposed speed")
+    plt.xlabel("commanded motor speed [RPM]")
     plt.ylabel("rho_yz raw counts")
     plt.title("Mean yz-field intensity vs imposed motor speed")
     plt.grid(True)
@@ -576,7 +593,7 @@ def plot_summary(summaries, output_dir=None):
     # Plot 3: theta fit quality
     plt.figure(figsize=(14, 8))
     plt.plot(speeds, r2, "o-", label="theta linear-fit R²")
-    plt.xlabel("Arduino imposed speed")
+    plt.xlabel("commanded motor speed [RPM]")
     plt.ylabel("R²")
     plt.title("Quality of angular rotation estimate")
     plt.grid(True)
@@ -623,7 +640,7 @@ def parse_speeds(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Automatic mapping from Arduino imposed speed to magnetic-field rotation speed."
+        description="Map commanded motor RPM to magnetic-field rotation speed."
     )
 
     # Arduino
@@ -642,16 +659,16 @@ def main():
     )
 
     # Speed sweep
-    parser.add_argument("--speeds", nargs="*", default=None, help="Explicit list of imposed speeds.")
-    parser.add_argument("--speed-start", type=float, default=1.0, help="Sweep start speed.")
-    parser.add_argument("--speed-stop", type=float, default=20.0, help="Sweep stop speed.")
-    parser.add_argument("--speed-step", type=float, default=1.0, help="Sweep speed step.")
+    parser.add_argument("--speeds", nargs="*", default=None, help="Explicit motor RPM values.")
+    parser.add_argument("--speed-start", type=float, default=1.0, help="Starting motor RPM.")
+    parser.add_argument("--speed-stop", type=float, default=20.0, help="Final motor RPM.")
+    parser.add_argument("--speed-step", type=float, default=1.0, help="Motor RPM increment.")
 
     # Acquisition
     parser.add_argument("--duration", type=float, default=30.0, help="Recording time per speed.")
     parser.add_argument("--dt", type=float, default=0.25, help="Requested sampling interval.")
     parser.add_argument("--wait", type=float, default=DEFAULT_MEASUREMENT_WAIT_S, help="SM/RM wait time.")
-    parser.add_argument("--baseline-samples", type=int, default=0, help="Initial baseline samples.")
+    parser.add_argument("--baseline-samples", type=int, default=20, help="Initial baseline samples.")
 
     # Output
     parser.add_argument(
@@ -677,6 +694,15 @@ def main():
     parser.add_argument("--scale", type=float, default=1.6, help="Plot scale factor.")
 
     args = parser.parse_args()
+
+    if args.duration <= 0:
+        parser.error("--duration must be positive.")
+    if args.dt <= 0:
+        parser.error("--dt must be positive.")
+    if args.wait < 0:
+        parser.error("--wait cannot be negative.")
+    if args.baseline_samples < 0:
+        parser.error("--baseline-samples cannot be negative.")
 
     apply_screen_scale(args.scale)
 
@@ -757,6 +783,9 @@ def main():
                 run_path = output_dir / f"{label}_CMD_hall.csv"
                 save_run_csv(run_path, data)
 
+        # Do not leave the stator energized while saving or showing plots.
+        stop_motor(ser, args.command_template)
+
         summary_path = output_dir / "summary_hall_RPM.csv"
         save_summary_csv(summary_path, summaries)
 
@@ -775,6 +804,8 @@ def main():
 
     finally:
         stop_event.set()
+
+        stop_motor(ser, args.command_template)
 
         if ser is not None and ser.is_open:
             ser.close()

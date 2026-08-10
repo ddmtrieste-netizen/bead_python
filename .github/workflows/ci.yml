@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - maintenance/1.x
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+        python-version:
+          - "3.10"
+          - "3.14"
+
+    env:
+      MPLBACKEND: Agg
+      MPLCONFIGDIR: .matplotlib-cache
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install locked project
+        run: uv sync --locked --dev
+
+      - name: Check active Python code
+        run: uv run ruff check src scripts pipelines tests
+
+      - name: Compile active Python code
+        run: uv run python -m compileall -q src scripts pipelines
+
+      - name: Run hardware-independent tests
+        run: uv run pytest

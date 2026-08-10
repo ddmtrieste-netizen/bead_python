@@ -4,13 +4,9 @@ import time
 import cv2
 import numpy as np
 
-from _common import (
-    open_camera,
-    draw_detection,
-    draw_track,
-    save_tracking_csv,
-    timestamp_string,
-)
+from beadtrack.camera import open_camera
+from beadtrack.data import save_tracking_csv, timestamp_string
+from beadtrack.tracking import draw_detection, draw_track
 
 
 def detect_hough_circle(
