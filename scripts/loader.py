@@ -1,4 +1,4 @@
-from _common import(
+from beadtrack._common import(
     load_csv,
     apply_screen_scale,
     maximize_window

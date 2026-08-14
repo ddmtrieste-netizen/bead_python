@@ -1,54 +1,12 @@
 import argparse
-import csv
 import numpy as np
-
 import matplotlib.pyplot as plt
 
-
-def load_csv(filename):
-    t = []
-    x = []
-    y = []
-    radius = []
-    area = []
-
-    with open(filename, "r") as f:
-        reader = csv.DictReader(f)
-
-        for row in reader:
-            t.append(float(row["t"]))
-            x.append(float(row["x"]))
-            y.append(float(row["y"]))
-            radius.append(float(row["radius"]))
-            area.append(float(row["area"]))
-
-    return t, x, y, radius, area
-
-
-def apply_screen_scale(scale):
-    plt.rcParams.update({
-        "font.size": 14 * scale,
-        "axes.titlesize": 18 * scale,
-        "axes.labelsize": 16 * scale,
-        "xtick.labelsize": 13 * scale,
-        "ytick.labelsize": 13 * scale,
-        "legend.fontsize": 13 * scale,
-        "lines.linewidth": 2.0 * scale,
-        "grid.linewidth": 0.8 * scale,
-    })
-
-
-def maximize_window():
-    manager = plt.get_current_fig_manager()
-
-    try:
-        manager.window.showMaximized()
-    except Exception:
-        try:
-            manager.full_screen_toggle()
-        except Exception:
-            pass
-
+from beadtrack._common import(
+    load_csv,
+    apply_screen_scale,
+    maximize_window,
+)
 
 def main():
     parser = argparse.ArgumentParser(description="Plot bead tracking CSV.")

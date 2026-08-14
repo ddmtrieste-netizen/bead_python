@@ -5,7 +5,7 @@ import subprocess
 import cv2
 import numpy as np
 
-from _common import (
+from beadtrack._common import (
     open_camera,
     create_background_subtractor,
     compute_foreground_masks,

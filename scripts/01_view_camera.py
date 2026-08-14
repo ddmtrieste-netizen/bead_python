@@ -1,7 +1,7 @@
 import argparse
 import cv2
 
-from _common import (
+from beadtrack._common import (
     open_camera,
     info,
     error
