@@ -4,7 +4,7 @@ import argparse
 import time
 import sys
 
-from _common import(
+from beadtrack._common import(
     read_from_arduino,
     info,
     ok,

@@ -40,7 +40,7 @@ def main():
     parser.add_argument("--max-area", type=float, default=None, help="Maximum contour area.")
     parser.add_argument("--no-debug", action="store_true", help="Hide mask debug windows.")
 
-    parser.add_argument("--rec_time", default=None, help="Recording time for autorecording.")
+    parser.add_argument("--rec-time", default=None, type=float, help="Recording time for autorecording.")
 
     args = parser.parse_args()
 

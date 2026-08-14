@@ -4,8 +4,8 @@ import numpy as np
 import sys
 import subprocess
 
-
-from scripts._common import (
+from pathlib import Path
+from beadtrack._common import (
     open_camera,
     read_from_arduino,
     ok,
@@ -23,7 +23,7 @@ class CustomArgs:
 
 def main():
     
-    rec_time = 10 # sec
+    rec_time = 60 # sec
     save_path = "data/14082026_mapping"
     
     try:
@@ -34,20 +34,22 @@ def main():
         read_thread = threading.Thread(target=read_from_arduino, args=(ser,), daemon=True)
         read_thread.start()
 
-        cap = open_camera(camera_index=0)
         try:
-            for ii in np.arange(1, 110, 0.5):
+            for ii in np.arange(1, 80, 0.5):
                 command = str(ii) + "\n"
-                save_file = save_path + str(ii) + "steps_s"
+                save_file = save_path + str(ii).replace(".", "_") + "steps_s"
+                Path(save_file).parent.mkdir(parents=True, exist_ok=True)
                 ser.write(command.encode('utf-8'))
                 cmd = [
                     sys.executable,
                     "scripts/02_track_moving_bead.py",
                     "--rec-time", str(rec_time),
-                    "--save", save_file
+                    "--output", save_file,
+                    "--no-debug"
                 ]
-        finally:
-            cap.release()   
+                recording_rsesult = subprocess.run(cmd, check=True)
+                ok(f"Step {ii} succesfully completed")
+        finally: 
             result("All data successfully acquired.")     
                 
     except serial.SerialException as e:
