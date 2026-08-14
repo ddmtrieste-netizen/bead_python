@@ -13,6 +13,21 @@ import scipy
 # Camera utilities
 # ---------------------------------------------------------------------
 
+RESET   = "\033[0m"
+
+def read_from_arduino(ser):
+    """Funzione che gira in un thread separato per leggere continuamente dall'Arduino."""
+    while ser.is_open:
+        try:
+            if ser.in_waiting > 0:
+                # Legge la linea, la decodifica e rimuove gli spazi bianchi
+                data = ser.readline().decode('utf-8', errors='ignore').strip()
+                if data:
+                    info(data)
+        except Exception as e:
+            error(f"{e}")
+            break
+
 def open_camera(camera_index=0, width=None, height=None, fps=None):
     """
     Open a standard webcam using OpenCV.
@@ -434,13 +449,15 @@ def timestamp_string():
 # Console styling
 #################################################
 
-def message(level, text, *, color="", stream=None):
+def message(level, text, *, color="", stream=None, end="\n"):
     """Print one tagged message."""
-    RESET   = "\033[0m"
     if stream is None:
         stream = sys.stderr if level in {"WARN", "ERROR"} else sys.stdout
-    print(f"{color}[{level}]{RESET} {text}", file=stream, flush=True)
+    print(f"{color}[{level}]{RESET} {text}", file=stream, flush=True, end=end)
 
+def ino_mess(text="Inserisci comando > "):
+    VIOLA   = "\033[35m"
+    message("ARDUINO", text, color=VIOLA, end="")
 
 def info(text):
     BLU     = "\033[34m"
