@@ -40,6 +40,8 @@ def main():
     parser.add_argument("--max-area", type=float, default=None, help="Maximum contour area.")
     parser.add_argument("--no-debug", action="store_true", help="Hide mask debug windows.")
 
+    parser.add_argument("--rec_time", default=None, help="Recording time for autorecording.")
+
     args = parser.parse_args()
 
     if args.output is None:
@@ -74,7 +76,7 @@ def main():
         if not flag_system_time:
             info(f"System time - frame 1 {now}")
             flag_system_time  = True
-            
+
         foreground, threshold, clean = compute_foreground_masks(
             frame,
             bg,
@@ -113,8 +115,8 @@ def main():
         cv2.imshow("tracking", display)
 
         key = cv2.waitKey(1) & 0xFF
-
-        if key == ord("q"):
+        is_time_up = args.rec_time and (now - ts[0] > args.rec_time)
+        if key == ord("q") or is_time_up:
             if len(ts) > 0 and args.save:
                 save_tracking_csv(args.output, ts, xs, ys, radii, areas)
                 ok(f"Saved {len(ts)} points to {BOLD}{args.output}{RESET}")
