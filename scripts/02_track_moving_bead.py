@@ -14,7 +14,14 @@ from _common import (
     draw_track,
     save_tracking_csv,
     timestamp_string,
+    info,
+    warn,
+    error,
+    ok
 )
+
+BOLD = '\033[1m'
+RESET = '\033[0m'
 
 
 def main():
@@ -46,28 +53,28 @@ def main():
         detect_shadows=True,
     )
 
-    ts = []
-    xs = []
-    ys = []
+    ts =    []
+    xs =    []
+    ys =    []
     radii = []
     areas = []
 
     flag_system_time = False
 
-    print("Tracking started.")
-    print("Press q to save and quit.")
-    print("Press ESC to quit without saving.")
+    info("Tracking started.", end="") 
+    print(f"Press {BOLD}q{RESET} to save and quit. Press {BOLD}ESC{RESET} to quit without saving.")
     while True:
         ret, frame = cap.read()
 
         if not ret:
-            print("Could not read frame.")
+            error("Could not read frame.")
             break
 
         now = time.time()
         if not flag_system_time:
-            print(f"System time - frame 1 {now}")
+            info(f"System time - frame 1 {now}")
             flag_system_time  = True
+            
         foreground, threshold, clean = compute_foreground_masks(
             frame,
             bg,
@@ -110,14 +117,13 @@ def main():
         if key == ord("q"):
             if len(ts) > 0 and args.save:
                 save_tracking_csv(args.output, ts, xs, ys, radii, areas)
-                print(f"Saved {len(ts)} points to: {args.output}")
-                print(f"System end time {time.time()}")
+                ok(f"Saved {len(ts)} points to {BOLD}{args.output}{RESET}")
             else:
-                print("No detections saved.")
+                warn("No detections saved.")
             break
 
         if key == 27:
-            print("ESC pressed. Exiting without saving.")
+            warn("ESC pressed. Exiting without saving.")
             break
 
     cap.release()

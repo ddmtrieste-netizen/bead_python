@@ -459,9 +459,9 @@ def ino_mess(text="Inserisci comando > "):
     VIOLA   = "\033[35m"
     message("ARDUINO", text, color=VIOLA, end="")
 
-def info(text):
+def info(text, end="\n"):
     BLU     = "\033[34m"
-    message("INFO", text, color=BLU)
+    message("INFO", text, color=BLU, end=end)
 
 
 def ok(text):
