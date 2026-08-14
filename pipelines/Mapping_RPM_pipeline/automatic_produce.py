@@ -127,7 +127,7 @@ def main():
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="./data/mapping_RPM_submerged/mapping_RMP3",
+        default="./data/mapping_RMP_aug07/mapping_RMP_1",
         help="Folder containing files like 5_RPM.csv.",
     )
 
@@ -178,14 +178,14 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
-        default="./data/mapping_RPM_submerged/rpm_summary.csv",
+        default="./data/mapping_RMP_aug07/mapping_1/rpm_summary.csv",
         help="Output summary CSV.",
     )
 
     parser.add_argument(
         "--figure",
         type=str,
-        default="./data/mapping_RPM_submerged/outcome/rpm_curve_bins.png",
+        default="./data/mapping_RMP_aug07/outcome/rpm_curve_raw.png",
         help="Output figure path. Use empty string to disable saving.",
     )
 

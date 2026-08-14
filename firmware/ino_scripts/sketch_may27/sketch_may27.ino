@@ -10,7 +10,7 @@ void setup() {
   Serial.begin(9600);
   Serial.println("Stepper Speed Control - Enter RPM:");
 
-  stepper.setMaxSpeed(32);
+  stepper.setMaxSpeed(200);
   stepper.setSpeed(32);
   
 }
@@ -21,9 +21,11 @@ void loop() {
   stepper.runSpeed();
 
   if (Serial.available() > 0) {
-    int newSpeed = Serial.parseInt();   // read the entered number (RPM)
+    float newSpeed = Serial.parseFloat();   // read the entered number (RPM)
 
-    if (newSpeed > 0) {                // ensure it's non-negative
+    
+    if (newSpeed != 0) {                // ensure it's non-negative
+      if(newSpeed == 9999){newSpeed = 0;}
       stepper.setSpeed(newSpeed);
       Serial.print("Set new speed to ");
       Serial.println(newSpeed);

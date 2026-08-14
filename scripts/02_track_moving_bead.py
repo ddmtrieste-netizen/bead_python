@@ -1,5 +1,6 @@
 import argparse
 import time
+import subprocess
 
 import cv2
 import numpy as np
@@ -19,7 +20,7 @@ from _common import (
 def main():
     parser = argparse.ArgumentParser(description="Track largest moving bead using background subtraction.")
     parser.add_argument("--camera", type=int, default=0, help="Camera index.")
-    parser.add_argument("--save", type=bool, default=0, help="Save data to CSV.")
+    parser.add_argument("--save", type=bool, default=1, help="Save data to CSV.")
     parser.add_argument("--output", type=str, default=None, help="Output CSV path.")
 
     parser.add_argument("--history", type=int, default=500, help="MOG2 history.")
@@ -51,10 +52,11 @@ def main():
     radii = []
     areas = []
 
+    flag_system_time = False
+
     print("Tracking started.")
     print("Press q to save and quit.")
     print("Press ESC to quit without saving.")
-
     while True:
         ret, frame = cap.read()
 
@@ -63,7 +65,9 @@ def main():
             break
 
         now = time.time()
-
+        if not flag_system_time:
+            print(f"System time - frame 1 {now}")
+            flag_system_time  = True
         foreground, threshold, clean = compute_foreground_masks(
             frame,
             bg,
@@ -107,6 +111,7 @@ def main():
             if len(ts) > 0 and args.save:
                 save_tracking_csv(args.output, ts, xs, ys, radii, areas)
                 print(f"Saved {len(ts)} points to: {args.output}")
+                print(f"System end time {time.time()}")
             else:
                 print("No detections saved.")
             break

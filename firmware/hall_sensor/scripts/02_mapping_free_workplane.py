@@ -28,6 +28,7 @@ import argparse
 import csv
 import math
 import time
+import numpy as np
 from pathlib import Path
 
 import EasyMCP2221
@@ -45,7 +46,7 @@ CMD_RM_ALL = 0x4F
 
 I2C_SPEED_HZ = 100_000
 DEFAULT_MEASUREMENT_WAIT_S = 0.203
-
+# DEFAULT_MEASUREMENT_WAIT_S = 0.005
 
 # =============================================================================
 # Terminal feedback
@@ -373,6 +374,27 @@ def plot_bx_trace(data, title, save_dir=None):
         save_current_figure(save_dir, "hall_bx_time_trace.png")
 
 
+def plot_b_modulo_trace(data, title, save_dir=None):
+    plt.figure(figsize=(14, 8))
+
+    b_modulo = np.sqrt(np.square(data["bx"]) + 
+                       np.square(data["by"]) +
+                       np.square(data["bz"])
+                     )
+
+    plt.plot(data["t"], b_modulo, label="|B|")
+
+    plt.xlabel("t [s]")
+    plt.ylabel("raw magnetic field counts")
+    plt.grid(True)
+    plt.legend()
+    plt.title(f"{title} | Bx vs time")
+    plt.tight_layout()
+
+    if save_dir is not None:
+        save_current_figure(save_dir, "hall_bx_time_trace.png")
+
+
 def plot_polar_yz(data, title, save_dir=None):
     fig = plt.figure(figsize=(14, 8))
     ax = fig.add_subplot(111, projection="polar")
@@ -397,6 +419,7 @@ def plot_results(data, title, save_dir=None):
 
     plot_time_traces(data, title, save_dir=save_dir)
     plot_bx_trace(data, title, save_dir=save_dir)
+    plot_b_modulo_trace(data, title, save_dir=save_dir)
 
     plt.show()
 

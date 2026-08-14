@@ -23,7 +23,7 @@ BLU     = "\033[34m"
 RESET   = "\033[0m"
 VIOLA   = "\033[35m"
 
-SERIAL_PORT = '/dev/ttyACM0'
+SERIAL_PORT = '/dev/ttyACM0' # can switch to ttyACM0 or ttyACM1
 BAUD_RATE = 9600
 
 
@@ -35,7 +35,6 @@ def read_from_arduino(ser):
                 data = ser.readline().decode('utf-8', errors='ignore').strip()
                 if data:
                     print(f"\n[Arduino]: {data}")
-                    print("Inserisci comando > ", end="", flush=True)
         except Exception as e:
             print(f"\nErrore di lettura: {e}")
             break
@@ -49,7 +48,7 @@ def tracker(cap, speed, recording_time_sec):
     args = CustomArgs()
     args.camera = 0
     args.save = 1
-    args.output = f"data/processed/mapping_RMP3/{speed}_RPM.csv"
+    args.output = f"data/mapping_RMP_aug07/mapping_001/{speed}_RPM.csv"
     args.history = 500
     args.var_threshold = 100.0  
     args.threshold = 120        
@@ -152,11 +151,11 @@ def main():
         cap = open_camera(camera_index=0)
         # Routine di cambio di motor speed
         try:
-            for ii in range(1, 100):
+            for ii in np.arange(1, 110, 0.5):
 
                 command = str(ii) + "\n"
                 ser.write(command.encode('utf-8'))
-                tracker(cap, ii, 180)
+                tracker(cap, ii, 60)
         finally:
             cap.release()            
                 

@@ -1,5 +1,7 @@
 import serial
 import threading
+import argparse
+import time
 import sys
 
 # Cosmetics
@@ -12,7 +14,7 @@ RESET   = "\033[0m"
 VIOLA   = "\033[35m"
 
 # Sostituisci con la tua porta e il tuo baud rate dell'Arduino
-SERIAL_PORT = '/dev/ttyACM1'
+SERIAL_PORT = '/dev/ttyACM0'
 BAUD_RATE = 9600
 
 def read_from_arduino(ser):
@@ -31,6 +33,12 @@ def read_from_arduino(ser):
             break
 
 def main():
+    parser = argparse.ArgumentParser(description="Parser.")
+    parser.add_argument("--status", type=int, default=0, help="Camera index.")
+
+    args = parser.parse_args()
+    print(args.status)
+
     try:
         # Inizializzazione della porta seriale
         ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
@@ -42,9 +50,20 @@ def main():
         read_thread.start()
         
         # Loop principale per prendere l'input del terminale in maniera continua
+
+        # user_input = "exit"
         while True:
             # Prende l'input dall'utente
-            user_input = input("Inserisci comando > ")
+            if args.status == 1:
+                tttt = "40"  + "\n"
+                ser.write(tttt.encode('utf-8'))
+                uuuu = "status" +  "\n"
+                ser.write(uuuu.encode('utf-8'))
+                # args.status = 0
+                time.sleep(0.002)
+                break
+            else:
+                user_input = input("Inserisci comando > ")
             
             # Condizione di uscita
             if user_input.lower() == 'exit':
@@ -58,6 +77,7 @@ def main():
                 
     except serial.SerialException as e:
         print(f"Errore di connessione seriale: {e}")
+        print(f"{GIALLO}[DEBUG]{RESET} Try SERIAL_PORT = /dev/ttyACM0 or /dev/ttyACM0")
     except KeyboardInterrupt:
         print("\nProgramma interrotto dall'utente.")
     finally:

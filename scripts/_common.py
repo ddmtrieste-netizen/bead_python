@@ -1,9 +1,12 @@
 import csv
 import time
+import sys
 from pathlib import Path
 
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
+import scipy
 
 
 # ---------------------------------------------------------------------
@@ -89,6 +92,7 @@ def compute_foreground_masks(
     threshold_value=120,
     kernel_size=3,
     dilation_iterations=2,
+    learning_rate=None
 ):
     """
     Compute foreground masks from one frame.
@@ -110,7 +114,14 @@ def compute_foreground_masks(
     clean : ndarray
         Dilated mask used for contour detection.
     """
-    foreground = bg_subtractor.apply(frame)
+
+    if learning_rate is None:
+        foreground = bg_subtractor.apply(frame)
+    else:
+        foreground = bg_subtractor.apply(
+            frame,
+            learningRate=float(learning_rate),
+        )
 
     _, threshold = cv2.threshold(
         foreground.copy(),
@@ -298,6 +309,32 @@ def draw_track(frame, xs, ys, max_points=300):
 
 
 # ---------------------------------------------------------------------
+# Signal Processing
+# ---------------------------------------------------------------------
+
+def smooth_sav(signal, window=301, ord=3):
+    y = scipy.signal.savgol_filter(
+            signal,
+            window_length = window,
+            polyorder = ord
+        )
+
+    return y
+
+def smooth_median(signal, window=101):
+    y = scipy.ndimage.median_filter(
+            signal,
+            size = window,
+            mode="wrap"
+        )
+
+    return y
+    
+
+
+
+
+# ---------------------------------------------------------------------
 # File utilities
 # ---------------------------------------------------------------------
 
@@ -342,8 +379,82 @@ def save_tracking_csv(filename, ts, xs, ys, radii, areas):
     return filename
 
 
+def load_csv(filename):
+    t = []
+    x = []
+    y = []
+    radius = []
+    area = []
+
+    with open(filename, "r") as f:
+        reader = csv.DictReader(f)
+
+        for row in reader:
+            t.append(float(row["t"]))
+            x.append(float(row["x"]))
+            y.append(float(row["y"]))
+            radius.append(float(row["radius"]))
+            area.append(float(row["area"]))
+
+    return t, x, y, radius, area
+
+
+def apply_screen_scale(scale):
+    plt.rcParams.update({
+        "font.size": 14 * scale,
+        "axes.titlesize": 18 * scale,
+        "axes.labelsize": 16 * scale,
+        "xtick.labelsize": 13 * scale,
+        "ytick.labelsize": 13 * scale,
+        "legend.fontsize": 13 * scale,
+        "lines.linewidth": 2.0 * scale,
+        "grid.linewidth": 0.8 * scale,
+    })
+
+
+def maximize_window():
+    manager = plt.get_current_fig_manager()
+
+    try:
+        manager.window.showMaximized()
+    except Exception:
+        try:
+            manager.full_screen_toggle()
+        except Exception:
+            pass
+
+
 def timestamp_string():
     """
     Return compact timestamp string for filenames.
     """
     return time.strftime("%Y%m%d_%H%M%S")
+
+# Console styling
+
+
+def message(level, text, *, stream=None):
+    """Print one tagged message."""
+    if stream is None:
+        stream = sys.stderr if level in {"WARN", "ERROR"} else sys.stdout
+    print(f"[{level}] {text}", file=stream, flush=True)
+
+
+def info(text):
+    message("INFO", text)
+
+
+def ok(text):
+    message("OK", text)
+
+
+def result(text):
+    message("RESULT", text)
+
+
+def warn(text):
+    message("WARN", text)
+
+
+def error(text):
+    message("ERROR", text)
