@@ -38,9 +38,9 @@ def plot_data(t, x):
 
 def main():
 
-    filePath = "data/14082026/test"
+    filePath = "data/14082026_PM/test"
     fileNumber = "1"
-    for ii in range(2, 2+1):
+    for ii in range(1, 1+1):
         path = concatPath([filePath, str(ii)])
         t, x, y, _, _ = load_csv(path)
         # print(f"Experimetn test{ii} - duration: {t[-1]} sec")
@@ -48,11 +48,14 @@ def main():
 
     delta_t = np.mean(np.diff(t))
     dt_medio = t[-1]/len(t)
+    correction_ref = delta_t / dt_medio
 
-    print(f"Error on dt medio:   {delta_t / dt_medio}")
+    print(f"Error on dt medio:   {correction_ref}")
     print(f"Error on dt median:  {np.median(np.diff(t)) / dt_medio}")
     print(f"Previous correction: 1.0002441637524901 ")
     print(f"STD on dt medio:     {np.std(np.diff(t))}")
+
+    plot_data(t, np.diff(t))
     
     
 

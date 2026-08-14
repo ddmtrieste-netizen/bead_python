@@ -4,7 +4,7 @@ import cv2
 import time
 import numpy as np
 
-from _common import (
+from scripts._common import (
     open_camera,
     create_background_subtractor,
     compute_foreground_masks,
@@ -12,33 +12,17 @@ from _common import (
     draw_detection,
     draw_track,
     save_tracking_csv,
+    read_from_arduino,
     timestamp_string,
+    info,
+    ok,
+    result,
+    warn,
+    error
 )
-# Cosmetics
-
-ROSSO   = "\033[31m"
-VERDE   = "\033[32m"
-GIALLO  = "\033[33m"
-BLU     = "\033[34m"
-RESET   = "\033[0m"
-VIOLA   = "\033[35m"
 
 SERIAL_PORT = '/dev/ttyACM0' # can switch to ttyACM0 or ttyACM1
 BAUD_RATE = 9600
-
-
-def read_from_arduino(ser):
-    """Funzione che gira in un thread separato per leggere continuamente dall'Arduino."""
-    while ser.is_open:
-        try:
-            if ser.in_waiting > 0:
-                data = ser.readline().decode('utf-8', errors='ignore').strip()
-                if data:
-                    print(f"\n[Arduino]: {data}")
-        except Exception as e:
-            print(f"\nErrore di lettura: {e}")
-            break
-
 
 class CustomArgs:
     pass

@@ -1,8 +1,11 @@
 import argparse
-
 import cv2
 
-from _common import open_camera
+from _common import (
+    open_camera,
+    info,
+    error
+)
 
 
 def main():
@@ -21,14 +24,13 @@ def main():
         fps=args.fps,
     )
 
-    print("Camera view started.")
-    print("Press q or ESC to quit.")
+    info("Camera view started. Press q or ESC to quit.")
 
     while True:
         ret, frame = cap.read()
 
         if not ret:
-            print("Could not read frame.")
+            error("Could not read frame.")
             break
 
         cv2.imshow("camera", frame)

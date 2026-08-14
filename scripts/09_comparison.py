@@ -125,6 +125,7 @@ def main():
     delta_theta_dot= theta_dot - np.interp(theta, theta_sort_ref, trendline_ref, period=2*np.pi)
     theta_dot_sort_trend = delta_theta_dot[idx]
     delta_theta_trend = smooth_median(theta_dot_sort_trend)
+    
 
     #####
    
@@ -181,6 +182,15 @@ def main():
         )
     plt.ylim((9, 14))
     plt.title("Angular velocity trendline magnitude")
+
+    plt.figure(figsize=(14, 8))
+
+    plt.plot(theta_sort, delta_theta_trend, c="r")
+    plt.xlabel("Theta [s]")
+    plt.ylabel("Theta dot [rad/s]")
+    plt.grid(True)
+    plt.legend(("7", "5"))
+    plt.title("Comparison Theta vs angular velocity")
     plt.show()
 
 
