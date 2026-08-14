@@ -430,31 +430,38 @@ def timestamp_string():
     """
     return time.strftime("%Y%m%d_%H%M%S")
 
+#################################################
 # Console styling
+#################################################
 
-
-def message(level, text, *, stream=None):
+def message(level, text, *, color="", stream=None):
     """Print one tagged message."""
+    RESET   = "\033[0m"
     if stream is None:
         stream = sys.stderr if level in {"WARN", "ERROR"} else sys.stdout
-    print(f"[{level}] {text}", file=stream, flush=True)
+    print(f"{color}[{level}]{RESET} {text}", file=stream, flush=True)
 
 
 def info(text):
-    message("INFO", text)
+    BLU     = "\033[34m"
+    message("INFO", text, color=BLU)
 
 
 def ok(text):
-    message("OK", text)
+    VERDE   = "\033[32m"
+    message("OK", text, color=VERDE)
 
 
 def result(text):
-    message("RESULT", text)
+    VIOLA   = "\033[35m"
+    message("RESULT", text, color=VIOLA)
 
 
 def warn(text):
-    message("WARN", text)
+    GIALLO  = "\033[33m"
+    message("WARN", text, color=GIALLO)
 
 
 def error(text):
-    message("ERROR", text)
+    ROSSO   = "\033[31m"
+    message("ERROR", text, color=ROSSO)
