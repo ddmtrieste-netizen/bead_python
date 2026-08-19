@@ -1,7 +1,0 @@
-README.md
-pyproject.toml
-src/beadtrack/_common.py
-src/beadtrack.egg-info/PKG-INFO
-src/beadtrack.egg-info/SOURCES.txt
-src/beadtrack.egg-info/dependency_links.txt
-src/beadtrack.egg-info/top_level.txt

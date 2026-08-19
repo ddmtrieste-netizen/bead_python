@@ -1,3 +1,9 @@
+# Plan
+
+---
+
+TO-DO of last day of summerschool IcTP at Trieste.
+
 - Metti liquidi + analizza shift fase = viscosity
 
 - parti pipeline
