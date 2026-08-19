@@ -47,3 +47,7 @@ graphify-out/
 
 # Python package metadata
 *.egg-info/
+
+# Agents
+.codex
+AGENTS.md
