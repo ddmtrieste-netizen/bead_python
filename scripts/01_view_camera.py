@@ -1,18 +1,18 @@
 import argparse
+
 import cv2
 
-from beadtrack._common import (
-    open_camera,
-    info,
-    error
-)
+from beadtrack import messages
+from beadtrack.camera import open_camera, read_frame_or_raise
 
 
 def main():
     parser = argparse.ArgumentParser(description="View camera stream only.")
     parser.add_argument("--camera", type=int, default=0, help="Camera index.")
     parser.add_argument("--width", type=int, default=None, help="Optional frame width.")
-    parser.add_argument("--height", type=int, default=None, help="Optional frame height.")
+    parser.add_argument(
+        "--height", type=int, default=None, help="Optional frame height."
+    )
     parser.add_argument("--fps", type=int, default=None, help="Optional FPS request.")
 
     args = parser.parse_args()
@@ -24,13 +24,13 @@ def main():
         fps=args.fps,
     )
 
-    info("Camera view started. Press q or ESC to quit.")
+    messages.info("Camera view started. Press q or ESC to quit.")
 
     while True:
-        ret, frame = cap.read()
-
-        if not ret:
-            error("Could not read frame.")
+        try:
+            frame = read_frame_or_raise(cap)
+        except RuntimeError:
+            messages.error("Could not read frame.")
             break
 
         cv2.imshow("camera", frame)

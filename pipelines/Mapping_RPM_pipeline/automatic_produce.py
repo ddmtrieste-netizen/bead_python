@@ -5,10 +5,11 @@ import csv
 import re
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
+from graphs_RPM import analyze_single_file
 
-from graphs_RPM import analyze_single_file, apply_screen_scale
+from beadtrack.plotting import apply_plot_scale
 
 
 def infer_speed_from_filename(file_path):
@@ -194,7 +195,7 @@ def main():
     if args.figure == "":
         args.figure = None
 
-    apply_screen_scale(args.scale)
+    apply_plot_scale(args.scale)
 
     files = find_speed_files(args.data_dir)
 
@@ -207,7 +208,7 @@ def main():
     print(f"method   = {args.method}")
     print(f"signal   = {args.signal}")
     print(f"n_files  = {len(files)}")
-    print("")
+    print()
 
     rows = []
 
@@ -238,12 +239,10 @@ def main():
                 )
             else:
                 print(
-                    f"{speed:>4} steps/s | "
-                    f"{rpm:>10.4g} cycles/min | "
-                    f"{file_path.name}"
+                    f"{speed:>4} steps/s | {rpm:>10.4g} cycles/min | {file_path.name}"
                 )
 
-        except Exception as exc:
+        except (OSError, RuntimeError, ValueError) as exc:
             print(f"Skipping {file_path.name}: {exc}")
 
     if len(rows) == 0:
@@ -251,7 +250,7 @@ def main():
         return
 
     save_summary_csv(args.output, rows)
-    print("")
+    print()
     print(f"Saved summary to: {args.output}")
 
     plot_rpm_curve(

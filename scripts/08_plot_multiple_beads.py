@@ -8,7 +8,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-
 REQUIRED_FIELDS = ("bead_id", "t", "x", "y", "radius", "area")
 
 
@@ -16,7 +15,9 @@ def build_parser():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", required=True, help="Input long-form CSV.")
     parser.add_argument("--save", default=None, help="Optional dashboard image path.")
-    parser.add_argument("--no-show", action="store_true", help="Save/test without opening a window.")
+    parser.add_argument(
+        "--no-show", action="store_true", help="Save/test without opening a window."
+    )
     return parser
 
 
@@ -28,7 +29,9 @@ def load_multiple_beads_csv(filename):
     grouped = defaultdict(lambda: {"t": [], "x": [], "y": []})
     with path.open("r", newline="", encoding="utf-8-sig") as stream:
         reader = csv.DictReader(stream)
-        missing = [field for field in REQUIRED_FIELDS if field not in (reader.fieldnames or [])]
+        missing = [
+            field for field in REQUIRED_FIELDS if field not in (reader.fieldnames or [])
+        ]
         if missing:
             raise ValueError(f"CSV missing columns: {', '.join(missing)}")
         for line_number, row in enumerate(reader, start=2):
@@ -59,7 +62,9 @@ def create_dashboard(grouped, title=None):
         values = grouped[bead_id]
         color = color_map(color_index % 10)
         label = f"bead {bead_id}"
-        trajectory_axis.plot(values["x"], values["y"], ".-", ms=2, lw=1, color=color, label=label)
+        trajectory_axis.plot(
+            values["x"], values["y"], ".-", ms=2, lw=1, color=color, label=label
+        )
         x_axis.plot(values["t"], values["x"], color=color, label=label)
         y_axis.plot(values["t"], values["y"], color=color, label=label)
 

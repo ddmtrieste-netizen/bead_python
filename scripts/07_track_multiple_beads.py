@@ -5,18 +5,20 @@ import csv
 import math
 import time
 from dataclasses import dataclass, field
+from itertools import pairwise
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from _common import (
+from beadtrack import messages
+from beadtrack.camera import open_camera, read_frame_or_raise
+from beadtrack.detection import (
     compute_foreground_masks,
     create_background_subtractor,
-    open_camera,
-    timestamp_string,
 )
-
+from beadtrack.io import timestamp_for_filename
+from beadtrack.models import Detection
 
 CSV_FIELDS = ("bead_id", "t", "x", "y", "radius", "area")
 COLORS = [
@@ -46,13 +48,23 @@ def build_parser():
         default=100,
         help="MOG2 variance threshold.",
     )
-    parser.add_argument("--threshold", type=int, default=100, help="Binary mask threshold.")
+    parser.add_argument(
+        "--threshold", type=int, default=100, help="Binary mask threshold."
+    )
     parser.add_argument("--kernel", type=int, default=3, help="Morphology kernel size.")
     parser.add_argument("--dilate", type=int, default=1, help="Dilation iterations.")
-    parser.add_argument("--min-area", type=float, default=20, help="Minimum contour area [px^2].")
-    parser.add_argument("--max-area", type=float, default=2000, help="Maximum contour area [px^2].")
-    parser.add_argument("--min-radius", type=float, default=2, help="Minimum radius [px].")
-    parser.add_argument("--max-radius", type=float, default=30, help="Maximum radius [px].")
+    parser.add_argument(
+        "--min-area", type=float, default=20, help="Minimum contour area [px^2]."
+    )
+    parser.add_argument(
+        "--max-area", type=float, default=2000, help="Maximum contour area [px^2]."
+    )
+    parser.add_argument(
+        "--min-radius", type=float, default=2, help="Minimum radius [px]."
+    )
+    parser.add_argument(
+        "--max-radius", type=float, default=30, help="Maximum radius [px]."
+    )
     parser.add_argument(
         "--min-circularity",
         type=float,
@@ -72,8 +84,12 @@ def build_parser():
         metavar="X,Y,R",
         help="Circular work area (default: 320,240,190).",
     )
-    parser.add_argument("--no-roi", action="store_true", help="Disable the circular work area.")
-    parser.add_argument("--no-debug", action="store_true", help="Hide mask debug windows.")
+    parser.add_argument(
+        "--no-roi", action="store_true", help="Disable the circular work area."
+    )
+    parser.add_argument(
+        "--no-debug", action="store_true", help="Hide mask debug windows."
+    )
     return parser
 
 
@@ -83,7 +99,9 @@ def parse_circle(text):
     except (TypeError, ValueError) as exc:
         raise argparse.ArgumentTypeError("circle must be X,Y,R") from exc
     if x < 0 or y < 0 or radius <= 0:
-        raise argparse.ArgumentTypeError("circle center must be non-negative and radius positive")
+        raise argparse.ArgumentTypeError(
+            "circle center must be non-negative and radius positive"
+        )
     return x, y, radius
 
 
@@ -115,8 +133,10 @@ def detect_all_contour_circles(
     min_circularity=0.20,
 ):
     """Return every MOG2 contour accepted by the geometric filters."""
-    contours, _hierarchy = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    detections = []
+    contours, _hierarchy = cv2.findContours(
+        mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
+    detections: list[Detection] = []
     for contour in contours:
         area = float(cv2.contourArea(contour))
         if not min_area <= area <= max_area:
@@ -133,15 +153,14 @@ def detect_all_contour_circles(
         if not min_radius <= radius <= max_radius:
             continue
         detections.append(
-            {
-                "x": float(x),
-                "y": float(y),
-                "radius": float(radius),
-                "area": area,
-                "circularity": circularity,
-            }
+            Detection(
+                x=float(x),
+                y=float(y),
+                radius=float(radius),
+                area=area,
+            )
         )
-    return sorted(detections, key=lambda item: (item["x"], item["y"]))
+    return sorted(detections, key=lambda item: (item.x, item.y))
 
 
 def apply_circular_roi(mask, circle):
@@ -161,7 +180,7 @@ class Track:
     vx: float = 0.0
     vy: float = 0.0
     missed: int = 0
-    history: list = field(default_factory=list)
+    history: list[tuple[float, float]] = field(default_factory=list)
 
     def predict(self):
         # A short velocity prediction absorbs MOG2 centroid jumps without
@@ -179,14 +198,14 @@ class DistanceTracker:
         self.tracks = {}
         self.next_id = 0
 
-    def update(self, detections):
+    def update(self, detections: list[Detection]):
         candidates = []
         for bead_id, track in self.tracks.items():
             predicted_x, predicted_y = track.predict()
             for detection_index, detection in enumerate(detections):
                 distance = math.hypot(
-                    detection["x"] - predicted_x,
-                    detection["y"] - predicted_y,
+                    detection.x - predicted_x,
+                    detection.y - predicted_y,
                 )
                 if distance <= self.max_distance:
                     candidates.append((distance, bead_id, detection_index))
@@ -206,12 +225,12 @@ class DistanceTracker:
             track = self.tracks[bead_id]
             detection = detections[detection_index]
             elapsed_frames = track.missed + 1
-            measured_vx = (detection["x"] - track.x) / elapsed_frames
-            measured_vy = (detection["y"] - track.y) / elapsed_frames
+            measured_vx = (detection.x - track.x) / elapsed_frames
+            measured_vy = (detection.y - track.y) / elapsed_frames
             track.vx = 0.5 * track.vx + 0.5 * measured_vx
             track.vy = 0.5 * track.vy + 0.5 * measured_vy
-            track.x = detection["x"]
-            track.y = detection["y"]
+            track.x = detection.x
+            track.y = detection.y
             track.missed = 0
             track.history.append((track.x, track.y))
             visible.append((bead_id, detection))
@@ -227,7 +246,7 @@ class DistanceTracker:
                 continue
             bead_id = self.next_id
             self.next_id += 1
-            track = Track(bead_id, detection["x"], detection["y"])
+            track = Track(bead_id, detection.x, detection.y)
             track.history.append((track.x, track.y))
             self.tracks[bead_id] = track
             visible.append((bead_id, detection))
@@ -239,13 +258,13 @@ def draw_tracks(frame, tracker, visible):
     for bead_id, track in tracker.tracks.items():
         color = COLORS[bead_id % len(COLORS)]
         points = track.history[-300:]
-        for first, second in zip(points, points[1:]):
+        for first, second in pairwise(points):
             cv2.line(frame, tuple(map(int, first)), tuple(map(int, second)), color, 1)
 
     for bead_id, detection in visible:
         color = COLORS[bead_id % len(COLORS)]
-        center = (int(detection["x"]), int(detection["y"]))
-        cv2.circle(frame, center, int(detection["radius"]), color, 2)
+        center = (int(detection.x), int(detection.y))
+        cv2.circle(frame, center, int(detection.radius), color, 2)
         cv2.putText(
             frame,
             f"ID {bead_id}",
@@ -272,7 +291,7 @@ def main(argv=None):
     parser = build_parser()
     args = parser.parse_args(argv)
     validate_args(parser, args)
-    output = args.output or f"data/multiple_beads/track_{timestamp_string()}.csv"
+    output = args.output or f"data/multiple_beads/track_{timestamp_for_filename()}.csv"
 
     cap = None
     tracker = DistanceTracker(max_distance=args.max_distance)
@@ -286,13 +305,14 @@ def main(argv=None):
             var_threshold=args.var_threshold,
             detect_shadows=True,
         )
-        print("Multiple-bead MOG2 tracking started.")
-        print("Press q to save and quit; press ESC to discard.")
+        messages.info("Multiple-bead MOG2 tracking started.")
+        print(
+            f"Press {messages.bold('q')} to save and quit; "
+            f"press {messages.bold('ESC')} to discard."
+        )
 
         while True:
-            received, frame = cap.read()
-            if not received or frame is None:
-                raise RuntimeError("Could not read frame from camera")
+            frame = read_frame_or_raise(cap)
 
             now = time.monotonic()
             foreground, threshold, clean = compute_foreground_masks(
@@ -319,10 +339,10 @@ def main(argv=None):
                     {
                         "bead_id": bead_id,
                         "t": f"{elapsed:.6f}",
-                        "x": f"{detection['x']:.6f}",
-                        "y": f"{detection['y']:.6f}",
-                        "radius": f"{detection['radius']:.6f}",
-                        "area": f"{detection['area']:.6f}",
+                        "x": f"{detection.x:.6f}",
+                        "y": f"{detection.y:.6f}",
+                        "radius": f"{detection.radius:.6f}",
+                        "area": f"{detection.area:.6f}",
                     }
                 )
 
@@ -356,15 +376,15 @@ def main(argv=None):
             if key == ord("q"):
                 if records:
                     saved = save_long_csv(output, records)
-                    print(f"Saved {len(records)} detections to: {saved}")
+                    messages.success(f"Saved {len(records)} detections to: {saved}")
                 else:
-                    print("No detections saved.")
+                    messages.warning("No detections saved.")
                 return 0
             if key == 27:
-                print("ESC pressed. Exiting without saving.")
+                messages.warning("ESC pressed. Exiting without saving.")
                 return 0
     except (OSError, RuntimeError, ValueError, cv2.error) as exc:
-        print(f"ERROR: {exc}")
+        messages.error(exc)
         return 1
     finally:
         if cap is not None:

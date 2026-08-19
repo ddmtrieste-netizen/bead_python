@@ -1,64 +1,55 @@
 import argparse
-import csv
-import numpy as np
-import matplotlib.pyplot as plt
 
-from beadtrack._common import(
-    load_csv,
-    smooth_median,
-    apply_screen_scale,
-    maximize_window,
-    smooth_sav
-)
+import matplotlib.pyplot as plt
+import numpy as np
+
+from beadtrack.io import load_tracking_csv
+from beadtrack.plotting import apply_plot_scale
+from beadtrack.signals import median_smooth
 
 
 def main():
     parser = argparse.ArgumentParser(description="Plot bead tracking CSV.")
     parser.add_argument("--input", type=str, required=True, help="Input tracking CSV.")
-    parser.add_argument("--save", type=str, default=None, help="Optional output figure path.")
+    parser.add_argument(
+        "--save", type=str, default=None, help="Optional output figure path."
+    )
     parser.add_argument("--scale", type=float, default=1.6, help="Visual scale factor.")
 
     args = parser.parse_args()
 
-    apply_screen_scale(args.scale)
+    apply_plot_scale(args.scale)
 
-    t, x, y, radius, area = load_csv(args.input)
-    t_ref, x_ref, y_ref, radius, area = load_csv("data/10082026/test5")
+    data = load_tracking_csv(args.input)
+    reference = load_tracking_csv("data/10082026/test5")
+    if len(data) == 0 or len(reference) == 0:
+        print("No data found.")
+        return
 
-    x_tilde = x - np.mean(x)
-    y_tilde = y - np.mean(y)
-    theta = np.arctan2(y_tilde , x_tilde)
-    # rotating frame (psi) = static frame (theta) - moving part (phase = angular vel * time) 
-    phase = 2*np.pi*31/60 * (3.66 + 0.09 -0.0025) * np.array(t) 
-    psi = theta + phase
-    psi_unw = np.remainder(psi, 2*np.pi) - np.pi
+    x_tilde = data.x - np.mean(data.x)
+    y_tilde = data.y - np.mean(data.y)
+    theta = np.arctan2(y_tilde, x_tilde)
 
     # angular velocity
     theta_unw = np.unwrap(theta)
-    theta_dot = np.gradient(theta_unw, np.array(t))
-    theta_ddot = np.gradient(theta_dot, np.array(t))
-    #theta_dot = (theta - np.roll(theta, 1)) * 30  # rad/s
-    #kk = 0
-    #for ii in theta_dot:
+    theta_dot = np.gradient(theta_unw, data.time)
+    # theta_dot = (theta - np.roll(theta, 1)) * 30  # rad/s
+    # kk = 0
+    # for ii in theta_dot:
     #    if ii  > 150 and ii  < -150:
-    #        theta_dot[kk] = ii - 2*np.pi*30 
+    #        theta_dot[kk] = ii - 2*np.pi*30
     #    kk = kk + 1
     # theta_dot = theta_dot % (2 * np.pi)
 
-
-    ######## 
+    ########
     # Subtract mean reference value for acceleration
     ########
 
-    x_tilde_ref = x_ref - np.mean(x_ref)
-    y_tilde_ref = y_ref - np.mean(y_ref)
-    theta_ref  = np.arctan2(y_tilde_ref, x_tilde_ref)
-    theta_unw_ref =  np.unwrap(theta_ref)
-    theta_dot_ref = np.gradient(theta_unw_ref, np.array(t_ref))
-
-    holder   = np.zeros(100)
-    counter  = np.zeros(100)
-    newTheta = np.arange(-314 , 314, 100) / 100
+    x_tilde_ref = reference.x - np.mean(reference.x)
+    y_tilde_ref = reference.y - np.mean(reference.y)
+    theta_ref = np.arctan2(y_tilde_ref, x_tilde_ref)
+    theta_unw_ref = np.unwrap(theta_ref)
+    theta_dot_ref = np.gradient(theta_unw_ref, reference.time)
 
     idx = np.argsort(theta)
     theta_sort = theta[idx]
@@ -68,34 +59,31 @@ def main():
     theta_sort_ref = theta_ref[idx_ref]
     theta_dot_sort_ref = theta_dot_ref[idx_ref]
 
-    trendline= smooth_median(
+    trendline = median_smooth(
         theta_dot_sort,
-        window = 501
+        window_size=501,
     )
-    trendline_ref = smooth_median(
+    trendline_ref = median_smooth(
         theta_dot_sort_ref,
-        window = 501
+        window_size=501,
     )
 
-    theta_common = np.linspace(-np.pi, np.pi, 1000)
-    # theta_dot_resamp = np.interp(theta_common, theta_sort, trendline, period=2*np.pi)
-    delta_theta_dot= theta_dot - np.interp(theta, theta_sort_ref, trendline_ref, period=2*np.pi)
+    delta_theta_dot = theta_dot - np.interp(
+        theta,
+        theta_sort_ref,
+        trendline_ref,
+        period=2 * np.pi,
+    )
     theta_dot_sort_trend = delta_theta_dot[idx]
-    delta_theta_trend = smooth_median(theta_dot_sort_trend)
-    
+    delta_theta_trend = median_smooth(theta_dot_sort_trend)
 
     #####
-   
-    if len(t) == 0:
-        print("No data found.")
-        return
 
     if args.save is not None:
         plt.savefig(args.save, dpi=200, bbox_inches="tight")
 
-
     plt.figure(figsize=(14, 8))
-    
+
     plt.plot(theta_ref[:], theta_dot_ref[:], ".")
     plt.plot(theta_sort_ref[:], trendline_ref[:], linewidth=2)
     plt.xlabel("Theta [s]")
@@ -114,9 +102,8 @@ def main():
     plt.legend(("7", "5"))
     plt.title("Comparison Theta vs angular velocity")
 
-
     plt.figure(figsize=(14, 8))
-    
+
     plt.plot(theta[:], theta_dot[:], ".")
     plt.plot(theta_ref[:], theta_dot_ref[:], ".")
     plt.xlabel("Theta [s]")
@@ -125,7 +112,6 @@ def main():
     plt.legend(("7", "5"))
     plt.title("Comparison Theta vs angular velocity")
 
-
     plt.figure(figsize=(8, 8))
     plt.subplot(projection="polar")
     plt.plot(theta_sort[:], -trendline[:], linewidth=2)
@@ -133,10 +119,10 @@ def main():
     plt.grid(True)
     plt.legend(
         ("Actual", "Reference"),
-        loc = "upper right",
-        bbox_to_anchor = (1.1, 1.1),
-        frameon = False
-        )
+        loc="upper right",
+        bbox_to_anchor=(1.1, 1.1),
+        frameon=False,
+    )
     plt.ylim((9, 14))
     plt.title("Angular velocity trendline magnitude")
 
@@ -150,12 +136,11 @@ def main():
     plt.title("Comparison Theta vs angular velocity")
     plt.show()
 
-
-
     print(f"median: {np.median(theta_dot)}")
     print(f"mean: {np.mean(theta_dot)}")
     print(f"std: {np.std(theta_dot[100:])}")
     print(np.mean(theta_dot) / np.median(theta_dot))
+
 
 if __name__ == "__main__":
     main()

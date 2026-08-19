@@ -6,19 +6,14 @@ import time
 import cv2
 import numpy as np
 
-from beadtrack._common import (
-    open_camera,
-    create_background_subtractor,
+from beadtrack import messages
+from beadtrack.camera import open_camera, read_frame_or_raise
+from beadtrack.detection import (
     compute_foreground_masks,
+    create_background_subtractor,
     detect_largest_contour_circle,
-    draw_detection,
-    draw_track,
-    error,
-    info,
-    result,
-    warn
 )
-
+from beadtrack.drawing import draw_detection, draw_track
 
 WINDOW = "Bead tracking diagnostic"
 TRACKBAR_LEARNING_RATE = "Learning x1e-4 (0=auto)"
@@ -44,10 +39,16 @@ def build_parser():
         default=120,
         help="Initial binary threshold (0-255); 120 includes MOG2 shadows.",
     )
-    parser.add_argument("--kernel", type=int, default=3, help="Odd morphology kernel size.")
+    parser.add_argument(
+        "--kernel", type=int, default=3, help="Odd morphology kernel size."
+    )
     parser.add_argument("--dilate", type=int, default=2, help="Initial dilation (0-5).")
-    parser.add_argument("--min-area", type=int, default=50, help="Initial minimum area.")
-    parser.add_argument("--max-area", type=float, default=None, help="Maximum contour area.")
+    parser.add_argument(
+        "--min-area", type=int, default=50, help="Initial minimum area."
+    )
+    parser.add_argument(
+        "--max-area", type=float, default=None, help="Maximum contour area."
+    )
     parser.add_argument(
         "--no-shadows",
         action="store_true",
@@ -164,8 +165,8 @@ def draw_telemetry(frame, fps, detection, learning_label, shadow_text):
         detection_text = "detection: NONE"
     else:
         detection_text = (
-            f"x={detection['x']:.1f} y={detection['y']:.1f} "
-            f"r={detection['radius']:.1f}px area={detection['area']:.1f}px2"
+            f"x={detection.x:.1f} y={detection.y:.1f} "
+            f"r={detection.radius:.1f}px area={detection.area:.1f}px2"
         )
     lines = [
         f"FPS {fps:.1f} | background {learning_label}",
@@ -227,19 +228,20 @@ def main(argv=None):
         cap = open_camera(camera_index=args.camera)
         background = create_model(args.history, active_var_threshold, detect_shadows)
         create_controls(args)
-        info("Diagnostic tracking started in one window.")
-        info("SPACE freeze/resume | r reset model | s shadows on/off | c clear track | q quit")
+        messages.info("Diagnostic tracking started in one window.")
+        messages.info(
+            "SPACE freeze/resume | r reset model | s shadows on/off | c clear track | q quit"
+        )
 
         while True:
-            received, frame = cap.read()
-            if not received or frame is None:
-                error("Could not read frame from camera")
-                return 1
+            frame = read_frame_or_raise(cap)
 
             controls = read_controls()
             if controls["var_threshold"] != active_var_threshold:
                 active_var_threshold = controls["var_threshold"]
-                background = create_model(args.history, active_var_threshold, detect_shadows)
+                background = create_model(
+                    args.history, active_var_threshold, detect_shadows
+                )
                 frozen = False
                 xs.clear()
                 ys.clear()
@@ -262,13 +264,17 @@ def main(argv=None):
                 max_area=args.max_area,
             )
             if detection is not None:
-                xs.append(detection["x"])
-                ys.append(detection["y"])
+                xs.append(detection.x)
+                ys.append(detection.y)
 
             now = time.perf_counter()
             if previous_time is not None and now > previous_time:
                 instantaneous_fps = 1.0 / (now - previous_time)
-                fps = instantaneous_fps if fps == 0 else 0.9 * fps + 0.1 * instantaneous_fps
+                fps = (
+                    instantaneous_fps
+                    if fps == 0
+                    else 0.9 * fps + 0.1 * instantaneous_fps
+                )
             previous_time = now
 
             shadow_value = int(background.getShadowValue()) if detect_shadows else None
@@ -277,7 +283,9 @@ def main(argv=None):
             elif controls["mask_threshold"] < shadow_value:
                 shadow_text = f"shadows ON ({shadow_value}) and INCLUDED in final mask"
             else:
-                shadow_text = f"shadows ON ({shadow_value}) and EXCLUDED from final mask"
+                shadow_text = (
+                    f"shadows ON ({shadow_value}) and EXCLUDED from final mask"
+                )
 
             live = frame.copy()
             draw_track(live, xs, ys)
@@ -295,18 +303,22 @@ def main(argv=None):
 
             key = cv2.waitKey(1) & 0xFF
             if key in (27, ord("q")):
-                result("diagnostic_tracking_stopped=true")
+                messages.result("diagnostic_tracking_stopped=true")
                 return 0
             if key == ord(" "):
                 frozen = not frozen
             elif key == ord("r"):
-                background = create_model(args.history, active_var_threshold, detect_shadows)
+                background = create_model(
+                    args.history, active_var_threshold, detect_shadows
+                )
                 frozen = False
                 xs.clear()
                 ys.clear()
             elif key == ord("s"):
                 detect_shadows = not detect_shadows
-                background = create_model(args.history, active_var_threshold, detect_shadows)
+                background = create_model(
+                    args.history, active_var_threshold, detect_shadows
+                )
                 frozen = False
                 xs.clear()
                 ys.clear()
@@ -314,10 +326,10 @@ def main(argv=None):
                 xs.clear()
                 ys.clear()
     except KeyboardInterrupt:
-        warn("Diagnostic tracking interrupted.")
+        messages.warning("Diagnostic tracking interrupted.")
         return 0
     except (OSError, RuntimeError, ValueError, cv2.error) as exc:
-        error(str(exc))
+        messages.error(exc)
         return 1
     finally:
         if cap is not None:

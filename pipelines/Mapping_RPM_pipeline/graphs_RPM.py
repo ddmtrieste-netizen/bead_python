@@ -5,38 +5,11 @@ import csv
 import sys
 from pathlib import Path
 
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
-
-# =============================================================================
-# IO
-# =============================================================================
-
-def load_csv(filename):
-    t = []
-    x = []
-    y = []
-    radius = []
-    area = []
-
-    with open(filename, "r", newline="") as f:
-        reader = csv.DictReader(f)
-
-        for row in reader:
-            t.append(float(row["t"]))
-            x.append(float(row["x"]))
-            y.append(float(row["y"]))
-            radius.append(float(row["radius"]))
-            area.append(float(row["area"]))
-
-    return (
-        np.asarray(t, dtype=float),
-        np.asarray(x, dtype=float),
-        np.asarray(y, dtype=float),
-        np.asarray(radius, dtype=float),
-        np.asarray(area, dtype=float),
-    )
+from beadtrack.io import load_tracking_csv
+from beadtrack.plotting import apply_plot_scale
 
 
 def get_file_from_speed(data_dir, speed):
@@ -67,25 +40,9 @@ def write_single_result_csv(output_file, result):
 
 
 # =============================================================================
-# Plot style
-# =============================================================================
-
-def apply_screen_scale(scale):
-    plt.rcParams.update({
-        "font.size": 14 * scale,
-        "axes.titlesize": 18 * scale,
-        "axes.labelsize": 16 * scale,
-        "xtick.labelsize": 13 * scale,
-        "ytick.labelsize": 13 * scale,
-        "legend.fontsize": 13 * scale,
-        "lines.linewidth": 2.0 * scale,
-        "grid.linewidth": 0.8 * scale,
-    })
-
-
-# =============================================================================
 # Signal utilities
 # =============================================================================
+
 
 def select_signal(signal_name, x, y, radius):
     if signal_name == "x":
@@ -120,6 +77,7 @@ def clean_and_sort_time_signal(t, signal):
 # =============================================================================
 # FFT core
 # =============================================================================
+
 
 def estimate_fft_raw(t, signal, fmin=0.0, fmax=None):
     """
@@ -221,14 +179,16 @@ def compute_bin_ffts(t, signal, bin_sec=20.0, fmin=0.0, fmax=None):
         )
 
         if np.isfinite(rpm):
-            bins.append({
-                "start": t0,
-                "end": t1,
-                "rpm": rpm,
-                "freq_hz": freq_hz,
-                "freqs": freqs,
-                "spectrum": spectrum,
-            })
+            bins.append(
+                {
+                    "start": t0,
+                    "end": t1,
+                    "rpm": rpm,
+                    "freq_hz": freq_hz,
+                    "freqs": freqs,
+                    "spectrum": spectrum,
+                }
+            )
 
         return bins
 
@@ -247,14 +207,16 @@ def compute_bin_ffts(t, signal, bin_sec=20.0, fmin=0.0, fmax=None):
             )
 
             if np.isfinite(rpm):
-                bins.append({
-                    "start": start,
-                    "end": end,
-                    "rpm": rpm,
-                    "freq_hz": freq_hz,
-                    "freqs": freqs,
-                    "spectrum": spectrum,
-                })
+                bins.append(
+                    {
+                        "start": start,
+                        "end": end,
+                        "rpm": rpm,
+                        "freq_hz": freq_hz,
+                        "freqs": freqs,
+                        "spectrum": spectrum,
+                    }
+                )
 
         start = end
 
@@ -349,6 +311,7 @@ def aggregate_bin_spectra(bins, aggregate="mean"):
 # Atomic analysis: one file
 # =============================================================================
 
+
 def analyze_single_file(
     speed=None,
     data_dir="./data/mapping_RPM_submerged/mapping_RMP",
@@ -373,7 +336,8 @@ def analyze_single_file(
     if not file_path.exists():
         raise FileNotFoundError(f"File not found: {file_path}")
 
-    t, x, y, radius, area = load_csv(file_path)
+    data = load_tracking_csv(file_path)
+    t, x, y, radius = data.time, data.x, data.y, data.radius
 
     if len(t) == 0:
         raise ValueError(f"No data found in file: {file_path}")
@@ -417,7 +381,7 @@ def analyze_single_file(
         "bead_rpm_fft": bead_rpm,
         "bead_rpm_fft_std": bead_rpm_std,
         "duration_s": duration_s,
-        "n_points": int(len(t)),
+        "n_points": len(t),
         "n_bins": int(n_bins),
         "bin_sec": final_bin_sec,
     }
@@ -426,6 +390,7 @@ def analyze_single_file(
 # =============================================================================
 # Modes
 # =============================================================================
+
 
 def run_explore(args):
     """
@@ -444,7 +409,8 @@ def run_explore(args):
         print(f"File not found: {file_path}")
         sys.exit(1)
 
-    t, x, y, radius, area = load_csv(file_path)
+    data = load_tracking_csv(file_path)
+    t, x, y = data.time, data.x, data.y
 
     if len(t) == 0:
         print(f"No data found for {file_path}.")
@@ -487,7 +453,8 @@ def run_produce(args):
         print(f"File not found: {file_path}")
         sys.exit(1)
 
-    t, x, y, radius, area = load_csv(file_path)
+    data = load_tracking_csv(file_path)
+    t, x, y, radius = data.time, data.x, data.y, data.radius
 
     if len(t) == 0:
         print(f"No data found for {file_path}.")
@@ -559,7 +526,9 @@ def run_produce(args):
             return
 
         bin_rpms = np.asarray([b["rpm"] for b in bins], dtype=float)
-        bin_starts = np.asarray([b["start"] - bins[0]["start"] for b in bins], dtype=float)
+        bin_starts = np.asarray(
+            [b["start"] - bins[0]["start"] for b in bins], dtype=float
+        )
 
         rpm_median = float(np.median(bin_rpms))
         rpm_std = float(np.std(bin_rpms))
@@ -608,6 +577,7 @@ def run_produce(args):
 # =============================================================================
 # Main
 # =============================================================================
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -703,7 +673,7 @@ def main():
 
     args = parser.parse_args()
 
-    apply_screen_scale(args.scale)
+    apply_plot_scale(args.scale)
 
     if args.mode == "explore":
         run_explore(args)

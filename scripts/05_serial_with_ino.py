@@ -1,57 +1,61 @@
-import serial
-import threading
+"""Send interactive commands to an Arduino over a serial connection."""
+
 import argparse
-import time
-import sys
+import threading
 
-from beadtrack._common import(
-    read_from_arduino,
-    info,
-    ok,
-    ino_mess,
-    warn,
-    error
-)
+import serial
 
-# Insert below Arduino port and baud rate 
-SERIAL_PORT = '/dev/ttyACM0'
-BAUD_RATE = 9600
+from beadtrack import messages
+from beadtrack.serial_io import log_serial_messages
+
+DEFAULT_SERIAL_PORT = "/dev/ttyACM0"
+DEFAULT_BAUD_RATE = 9600
 
 
-def main():
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--port", default=DEFAULT_SERIAL_PORT, help="Serial port.")
+    parser.add_argument("--baud-rate", type=int, default=DEFAULT_BAUD_RATE)
+    return parser
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+    serial_port = None
 
     try:
-        # Serial port initialization
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-        ok(f"Connected to{SERIAL_PORT} at {BAUD_RATE} baud.")
-        info("Insert a command and press ENTER. Typer 'exit' to exit.")
-        read_thread = threading.Thread(target=read_from_arduino, args=(ser,), daemon=True)
+        serial_port = serial.Serial(args.port, args.baud_rate, timeout=1)
+        messages.success(f"Connected to {args.port} at {args.baud_rate} baud.")
+        messages.info("Enter a command, or type 'exit' to quit.")
+
+        read_thread = threading.Thread(
+            target=log_serial_messages,
+            args=(serial_port,),
+            daemon=True,
+        )
         read_thread.start()
 
         while True:
-            time.sleep(0.01)
-            ino_mess()
-            user_input = input()
-            
-            if user_input.lower() == 'exit':
-                info("Closing serial comunication...")
-                break
-                
+            messages.arduino_prompt()
+            user_input = input().strip()
+            if user_input.lower() == "exit":
+                messages.info("Closing serial communication...")
+                return 0
             if user_input:
-                command = user_input + "\n"
-                ser.write(command.encode('utf-8'))
-                
-    except serial.SerialException as e:
-        error(f"Serial comunication error: {e}")
-        warn(f"Try SERIAL_PORT = /dev/ttyACM0 or /dev/ttyACM0")
+                serial_port.write(f"{user_input}\n".encode())
+    except serial.SerialException as exc:
+        messages.error(f"Serial communication error: {exc}")
+        messages.warning("Check the serial port name and device connection.")
+        return 1
     except KeyboardInterrupt:
         print()
-        warn("User interruption detected.")
+        messages.warning("User interruption detected.")
+        return 0
     finally:
-        # Close port 
-        if 'ser' in locals() and ser.is_open:
-            ser.close()
-        warn("Serial port closed.")
+        if serial_port is not None and serial_port.is_open:
+            serial_port.close()
+            messages.info("Serial port closed.")
+
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

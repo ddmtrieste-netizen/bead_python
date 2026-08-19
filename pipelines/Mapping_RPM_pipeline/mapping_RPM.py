@@ -1,69 +1,71 @@
-import serial
-import threading
-import numpy as np
-import sys
+"""Acquire bead trajectories over a sweep of stepper-motor speeds."""
+
 import subprocess
-
+import sys
+import threading
 from pathlib import Path
-from beadtrack._common import (
-    open_camera,
-    read_from_arduino,
-    ok,
-    result,
-    warn,
-    error,
-    ino_mess
-)
 
-SERIAL_PORT = '/dev/ttyACM0' # can switch to ttyACM0 or ttyACM1
+import numpy as np
+import serial
+
+from beadtrack import messages
+from beadtrack.serial_io import log_serial_messages
+
+SERIAL_PORT = "/dev/ttyACM0"
 BAUD_RATE = 9600
+RECORDING_DURATION = 60.0
+OUTPUT_DIRECTORY = Path("data/14082026_mapping")
 
-class CustomArgs:
-    pass
 
-def main():
-    
-    rec_time = 60 # sec
-    save_path = "data/14082026_mapping"
-    
+def main() -> int:
+    serial_port = None
+
     try:
-        # Serial port initialization
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-        ok(f"Connected to{SERIAL_PORT} at {BAUD_RATE} baud.")
+        serial_port = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        messages.success(f"Connected to {SERIAL_PORT} at {BAUD_RATE} baud.")
 
-        read_thread = threading.Thread(target=read_from_arduino, args=(ser,), daemon=True)
+        read_thread = threading.Thread(
+            target=log_serial_messages,
+            args=(serial_port,),
+            daemon=True,
+        )
         read_thread.start()
 
-        try:
-            for ii in np.arange(1, 80, 0.5):
-                command = str(ii) + "\n"
-                save_file = save_path + str(ii).replace(".", "_") + "steps_s"
-                Path(save_file).parent.mkdir(parents=True, exist_ok=True)
-                ser.write(command.encode('utf-8'))
-                cmd = [
-                    sys.executable,
-                    "scripts/02_track_moving_bead.py",
-                    "--rec-time", str(rec_time),
-                    "--output", save_file,
-                    "--no-debug"
-                ]
-                recording_rsesult = subprocess.run(cmd, check=True)
-                ok(f"Step {ii} succesfully completed")
-        finally: 
-            result("All data successfully acquired.")     
-                
-    except serial.SerialException as e:
-        error(f"Serial comunication error: {e}")
-        warn(f"Try SERIAL_PORT = /dev/ttyACM0 or /dev/ttyACM0")
+        OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        for speed in np.arange(1, 80, 0.5):
+            serial_port.write(f"{speed}\n".encode())
+            speed_label = str(speed).replace(".", "_")
+            output = OUTPUT_DIRECTORY / f"{speed_label}_steps_s.csv"
+            command = [
+                sys.executable,
+                "scripts/02_track_moving_bead.py",
+                "--rec-time",
+                str(RECORDING_DURATION),
+                "--output",
+                str(output),
+                "--no-debug",
+            ]
+            subprocess.run(command, check=True)
+            messages.success(f"Completed speed step {speed}")
+
+        messages.result("All data successfully acquired.")
+        return 0
+    except serial.SerialException as exc:
+        messages.error(f"Serial communication error: {exc}")
+        messages.warning("Check the serial port name and device connection.")
+        return 1
+    except subprocess.CalledProcessError as exc:
+        messages.error(f"Tracking subprocess failed with exit code {exc.returncode}")
+        return exc.returncode or 1
     except KeyboardInterrupt:
         print()
-        warn("User interruption detected.")
+        messages.warning("User interruption detected.")
+        return 0
     finally:
-        # Close port 
-        if 'ser' in locals() and ser.is_open:
-            ser.close()
-        warn("Serial port closed.")
+        if serial_port is not None and serial_port.is_open:
+            serial_port.close()
+            messages.info("Serial port closed.")
+
 
 if __name__ == "__main__":
-    main()       
-
+    raise SystemExit(main())
