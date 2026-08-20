@@ -12,6 +12,12 @@ def main():
     parser = argparse.ArgumentParser(description="Plot bead tracking CSV.")
     parser.add_argument("--input", type=str, required=True, help="Input tracking CSV.")
     parser.add_argument(
+        "--reference",
+        type=str,
+        required=True,
+        help="Reference tracking CSV.",
+    )
+    parser.add_argument(
         "--save", type=str, default=None, help="Optional output figure path."
     )
     parser.add_argument("--scale", type=float, default=1.6, help="Visual scale factor.")
@@ -21,7 +27,7 @@ def main():
     apply_plot_scale(args.scale)
 
     data = load_tracking_csv(args.input)
-    reference = load_tracking_csv("data/10082026/test5")
+    reference = load_tracking_csv(args.reference)
     if len(data) == 0 or len(reference) == 0:
         print("No data found.")
         return

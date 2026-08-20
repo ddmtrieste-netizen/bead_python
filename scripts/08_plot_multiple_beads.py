@@ -7,8 +7,10 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
+from numpy.typing import NDArray
 
 REQUIRED_FIELDS = ("bead_id", "t", "x", "y", "radius", "area")
+BeadSeries = dict[str, NDArray[np.float64]]
 
 
 def build_parser():
@@ -21,12 +23,14 @@ def build_parser():
     return parser
 
 
-def load_multiple_beads_csv(filename):
+def load_multiple_beads_csv(filename) -> dict[int, BeadSeries]:
     path = Path(filename)
     if not path.is_file():
         raise FileNotFoundError(f"CSV not found: {path}")
 
-    grouped = defaultdict(lambda: {"t": [], "x": [], "y": []})
+    grouped: defaultdict[int, dict[str, list[float]]] = defaultdict(
+        lambda: {"t": [], "x": [], "y": []}
+    )
     with path.open("r", newline="", encoding="utf-8-sig") as stream:
         reader = csv.DictReader(stream)
         missing = [
@@ -46,11 +50,14 @@ def load_multiple_beads_csv(filename):
     if not grouped:
         raise ValueError("CSV contains no detections")
 
-    for values in grouped.values():
+    result: dict[int, BeadSeries] = {}
+    for bead_id, values in grouped.items():
         order = np.argsort(values["t"])
-        for key in ("t", "x", "y"):
-            values[key] = np.asarray(values[key], dtype=float)[order]
-    return dict(grouped)
+        result[bead_id] = {
+            key: np.asarray(values[key], dtype=np.float64)[order]
+            for key in ("t", "x", "y")
+        }
+    return result
 
 
 def create_dashboard(grouped, title=None):

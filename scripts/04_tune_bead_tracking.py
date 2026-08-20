@@ -278,7 +278,7 @@ def main(argv=None):
             previous_time = now
 
             shadow_value = int(background.getShadowValue()) if detect_shadows else None
-            if not detect_shadows:
+            if shadow_value is None:
                 shadow_text = "shadows OFF"
             elif controls["mask_threshold"] < shadow_value:
                 shadow_text = f"shadows ON ({shadow_value}) and INCLUDED in final mask"

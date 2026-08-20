@@ -1,3 +1,5 @@
+import argparse
+
 import matplotlib.pyplot as plt
 import numpy as np
 
@@ -28,12 +30,16 @@ def plot_data(t, x):
 
 
 def main():
-    file_path_prefix = "data/14082026_PM/test"
-    for index in range(1, 2):
-        path = f"{file_path_prefix}{index}"
-        data = load_tracking_csv(path)
-        # print(f"Experimetn test{ii} - duration: {t[-1]} sec")
-        print(f"{data.time[-1]}, # sec")
+    parser = argparse.ArgumentParser(description="Inspect tracking frame timing.")
+    parser.add_argument("--input", required=True, help="Input tracking CSV.")
+    args = parser.parse_args()
+
+    data = load_tracking_csv(args.input)
+    if len(data) < 2:
+        print("At least two tracking samples are required.")
+        return
+
+    print(f"{data.time[-1]}, # sec")
 
     delta_t = np.mean(np.diff(data.time))
     dt_medio = data.time[-1] / len(data)
