@@ -6,7 +6,7 @@ import time
 import cv2
 
 from beadtrack import messages
-from beadtrack.camera import open_camera, read_frame_or_raise
+from beadtrack.camera import iter_frames, open_camera
 from beadtrack.detection import (
     compute_foreground_masks,
     create_background_subtractor,
@@ -79,9 +79,9 @@ def main() -> int:
             f"Press {messages.bold('ESC')} to quit without saving."
         )
 
-        while True:
-            frame = read_frame_or_raise(capture)
-            now = time.monotonic()
+        for captured in iter_frames(capture):
+            frame = captured.image
+            now = captured.time
 
             foreground, threshold, clean = compute_foreground_masks(
                 frame,
@@ -128,6 +128,8 @@ def main() -> int:
             if key == 27:
                 messages.warning("ESC pressed. Exiting without saving.")
                 return 0
+
+        return 0
     except (OSError, RuntimeError, ValueError, cv2.error) as exc:
         messages.error(exc)
         return 1
