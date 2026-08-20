@@ -7,9 +7,13 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-from graphs_RPM import analyze_single_file
 
 from beadtrack.plotting import apply_plot_scale
+
+if __package__:
+    from .graphs_RPM import analyze_single_file
+else:
+    from graphs_RPM import analyze_single_file
 
 
 def infer_speed_from_filename(file_path):
