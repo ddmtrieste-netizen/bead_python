@@ -39,13 +39,6 @@ def main():
     # angular velocity
     theta_unw = np.unwrap(theta)
     theta_dot = np.gradient(theta_unw, data.time)
-    # theta_dot = (theta - np.roll(theta, 1)) * 30  # rad/s
-    # kk = 0
-    # for ii in theta_dot:
-    #    if ii  > 150 and ii  < -150:
-    #        theta_dot[kk] = ii - 2*np.pi*30
-    #    kk = kk + 1
-    # theta_dot = theta_dot % (2 * np.pi)
 
     ########
     # Subtract mean reference value for acceleration
