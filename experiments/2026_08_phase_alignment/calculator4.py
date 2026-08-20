@@ -1,3 +1,5 @@
+"""Reconstruct field phase from acquisition timestamps and angular velocity."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 

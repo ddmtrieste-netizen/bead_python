@@ -1,3 +1,5 @@
+"""Explore the step-per-revolution correction over a narrow interval."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 

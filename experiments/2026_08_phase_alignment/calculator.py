@@ -1,3 +1,5 @@
+"""Initial scratch calculation for step-count and bead-phase alignment."""
+
 import numpy as np
 
 48

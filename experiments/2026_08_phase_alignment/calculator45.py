@@ -1,3 +1,5 @@
+"""Apply the timestamp alignment method to a later experimental dataset."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -41,31 +43,22 @@ psi =  np.r_[
     -1.377821399282329
             ]
 
-
-
 delta_time = diff_special(starting_times)
 # fps_real = 1 / np.mean((ending_times[0] - starting_times)/number_of_samples)
 #print(fps_real)
-corr_omega = np.linspace(0.999999999, 1.00015, 10**4)
+
 if 1:
     # omega = 2*np.pi*31/60*(3.66 + 0.09 - 0.0025 + 0.0009 - 0.000915)
-    omega = 2*np.pi*31/60*(3.66 + 0.09 - 0.0025 + 0.0009) / 1.000293083235639 * corr_omega
-    delta_phase = omega*delta_time[-1]
-    psi_aligned = wrap(psi[-1] + delta_phase)
+    omega = 2*np.pi*31/60*(3.66 + 0.09 - 0.0025 + 0.0009) / 1.000293083235639 * 1.000078009
+    delta_phase = omega*delta_time
+    psi_aligned = wrap(psi + delta_phase)
     misalignment = wrap(psi_aligned - psi[0])
 
-    if 0:
+    if 1:
         print(f"Fase del campo da PC clock: {(wrap(delta_phase))} rad")
         print(f"Fasi originali:             {psi} rad")
         print(f"Fasi riallineate:           {psi_aligned} rad")
         print(f"Dissalineamento:            {misalignment} rad")
         # print(rad2deg(diff_special(psi)))
 
-        print(rad2deg(np.array([ 0.    ,     -0.03688979 ,-0.51919693, -0.53000801, -0.53329652])))
-        print(f"Tempo passato: {diff_special(starting_times)/ 60}")
-
-plt.figure()
-plt.plot(corr_omega, misalignment, "--")
-plt.grid()
-plt.show()
-
+print(f"Tempo passato: {diff_special(starting_times)/ 60}")

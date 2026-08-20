@@ -1,3 +1,5 @@
+"""Evaluate phase alignment with a fixed steps-per-revolution value."""
+
 import numpy as np
 import matplotlib.pyplot as plt
 

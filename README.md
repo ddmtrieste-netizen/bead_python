@@ -21,8 +21,13 @@ uv sync
 
 - `src/beadtrack/`: reusable tracking code
 - `scripts/`: runnable acquisition and analysis scripts
+- [`experiments/`](experiments/): dated exploratory analyses and research
+  scratchpads
 - `pipelines/`: automated acquisition and analysis workflows
 - `firmware/`: Arduino firmware and magnetic-sensor utilities
+
+Code under `experiments/` preserves the reasoning behind provisional analyses;
+it is not part of the stable `beadtrack` API.
 
 ## Single-bead workflow
 
