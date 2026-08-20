@@ -6,9 +6,14 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from .models import Detection
+from .models import Detection, TrackingSample
 
-__all__ = ["draw_detection", "draw_detections", "draw_track"]
+__all__ = [
+    "draw_detection",
+    "draw_detections",
+    "draw_sample_track",
+    "draw_track",
+]
 
 Color = tuple[int, int, int]
 
@@ -37,6 +42,26 @@ def draw_detections(
     """Draw multiple bead detections in place and return the frame."""
     for detection in detections:
         draw_detection(frame, detection)
+    return frame
+
+
+def draw_sample_track(
+    frame: NDArray[np.uint8],
+    samples: Sequence[TrackingSample],
+    max_points: int = 300,
+) -> NDArray[np.uint8]:
+    """Draw the most recent trajectory from timestamped detections."""
+    if len(samples) < 2:
+        return frame
+
+    start = max(1, len(samples) - max_points)
+    for index in range(start, len(samples)):
+        previous_detection = samples[index - 1].detection
+        current_detection = samples[index].detection
+        previous = (int(previous_detection.x), int(previous_detection.y))
+        current = (int(current_detection.x), int(current_detection.y))
+        cv2.line(frame, previous, current, (0, 255, 255), 1)
+
     return frame
 
 

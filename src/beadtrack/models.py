@@ -7,7 +7,25 @@ from typing import Self
 import numpy as np
 from numpy.typing import NDArray
 
-__all__ = ["Detection", "TrackingData"]
+__all__ = ["Detection", "TrackingData", "TrackingSample"]
+
+
+@dataclass(slots=True)
+class Detection:
+    """Position and geometry of one detected bead."""
+
+    x: float
+    y: float
+    radius: float
+    area: float
+
+
+@dataclass(slots=True)
+class TrackingSample:
+    """One timestamped bead detection."""
+
+    time: float
+    detection: Detection
 
 
 @dataclass(slots=True, eq=False)
@@ -39,6 +57,17 @@ class TrackingData:
             area=np.asarray(area, dtype=np.float64),
         )
 
+    @classmethod
+    def from_samples(cls, samples: Sequence[TrackingSample]) -> Self:
+        """Build aligned tracking arrays from timestamped detections."""
+        return cls.from_sequences(
+            time=[sample.time for sample in samples],
+            x=[sample.detection.x for sample in samples],
+            y=[sample.detection.y for sample in samples],
+            radius=[sample.detection.radius for sample in samples],
+            area=[sample.detection.area for sample in samples],
+        )
+
     def __post_init__(self) -> None:
         for field_name in ("time", "x", "y", "radius", "area"):
             values = np.asarray(getattr(self, field_name), dtype=np.float64)
@@ -55,13 +84,3 @@ class TrackingData:
 
     def __len__(self) -> int:
         return len(self.time)
-
-
-@dataclass(slots=True)
-class Detection:
-    """Position and geometry of one detected bead."""
-
-    x: float
-    y: float
-    radius: float
-    area: float

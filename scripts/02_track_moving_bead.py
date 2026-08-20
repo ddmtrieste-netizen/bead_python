@@ -12,9 +12,9 @@ from beadtrack.detection import (
     create_background_subtractor,
     detect_largest_contour_circle,
 )
-from beadtrack.drawing import draw_detection, draw_track
+from beadtrack.drawing import draw_detection, draw_sample_track
 from beadtrack.io import save_tracking_csv, timestamp_for_filename
-from beadtrack.models import TrackingData
+from beadtrack.models import TrackingData, TrackingSample
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -62,11 +62,7 @@ def main() -> int:
     output = args.output or f"data/processed/track_{timestamp_for_filename()}.csv"
 
     capture = None
-    timestamps: list[float] = []
-    x_positions: list[float] = []
-    y_positions: list[float] = []
-    radii: list[float] = []
-    areas: list[float] = []
+    samples: list[TrackingSample] = []
 
     try:
         capture = open_camera(camera_index=args.camera)
@@ -101,15 +97,11 @@ def main() -> int:
             )
 
             if detection is not None:
-                timestamps.append(now)
-                x_positions.append(detection.x)
-                y_positions.append(detection.y)
-                radii.append(detection.radius)
-                areas.append(detection.area)
+                samples.append(TrackingSample(time=now, detection=detection))
 
             display = frame.copy()
             draw_detection(display, detection)
-            draw_track(display, x_positions, y_positions)
+            draw_sample_track(display, samples)
 
             if not args.no_debug:
                 cv2.imshow("foreground", foreground)
@@ -123,19 +115,13 @@ def main() -> int:
                 and now - recording_started_at >= args.rec_time
             )
             if key == ord("q") or time_is_up:
-                if timestamps and args.save:
-                    data = TrackingData.from_sequences(
-                        time=timestamps,
-                        x=x_positions,
-                        y=y_positions,
-                        radius=radii,
-                        area=areas,
-                    )
+                if samples and args.save:
+                    data = TrackingData.from_samples(samples)
                     save_tracking_csv(output, data)
                     messages.success(
                         f"Saved {len(data)} points to {messages.bold(output)}"
                     )
-                elif not timestamps:
+                elif not samples:
                     messages.warning("No detections saved.")
                 return 0
 
