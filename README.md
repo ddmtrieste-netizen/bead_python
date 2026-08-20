@@ -13,15 +13,14 @@ Track the position of a bead moving above a stepper motor stator and reconstruct
 - Actuation: stepper motor stator
 - Object: magnetic or non-magnetic bead
 - Working plane: free Petri, contrained, concentric
-- Surrounding fluid: ari, water
+- Surrounding fluid: air, water, water + glycerol
 
 ## Repository structure
 
 - `src/beadtrack/`: reusable tracking code
 - `scripts/`: runnable scripts
-- `experiments/`: experimental data and metadata
-- `notes/`: project notes
-- `archive/`: old exploratory scripts
+- `pipelines/`: blocks of code that combines multiple basic scripts for long automatic recordings
+- `firmware/`: arduino scripts
 
 ## Basic usage
 
