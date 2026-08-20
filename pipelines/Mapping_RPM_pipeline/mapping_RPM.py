@@ -1,174 +1,71 @@
-import serial
+"""Acquire bead trajectories over a sweep of stepper-motor speeds."""
+
+import subprocess
+import sys
 import threading
-import cv2
-import time
+from pathlib import Path
+
 import numpy as np
+import serial
 
-from _common import (
-    open_camera,
-    create_background_subtractor,
-    compute_foreground_masks,
-    detect_largest_contour_circle,
-    draw_detection,
-    draw_track,
-    save_tracking_csv,
-    timestamp_string,
-)
-# Cosmetics
+from beadtrack import messages
+from beadtrack.serial_io import log_serial_messages
 
-ROSSO   = "\033[31m"
-VERDE   = "\033[32m"
-GIALLO  = "\033[33m"
-BLU     = "\033[34m"
-RESET   = "\033[0m"
-VIOLA   = "\033[35m"
-
-SERIAL_PORT = '/dev/ttyACM0'
+SERIAL_PORT = "/dev/ttyACM0"
 BAUD_RATE = 9600
+RECORDING_DURATION = 60.0
+OUTPUT_DIRECTORY = Path("data/14082026_mapping")
 
 
-def read_from_arduino(ser):
-    """Funzione che gira in un thread separato per leggere continuamente dall'Arduino."""
-    while ser.is_open:
-        try:
-            if ser.in_waiting > 0:
-                data = ser.readline().decode('utf-8', errors='ignore').strip()
-                if data:
-                    print(f"\n[Arduino]: {data}")
-                    print("Inserisci comando > ", end="", flush=True)
-        except Exception as e:
-            print(f"\nErrore di lettura: {e}")
-            break
+def main() -> int:
+    serial_port = None
 
-
-class CustomArgs:
-    pass
-
-
-def tracker(cap, speed, recording_time_sec):
-    args = CustomArgs()
-    args.camera = 0
-    args.save = 1
-    args.output = f"data/processed/mapping_RMP3/{speed}_RPM.csv"
-    args.history = 500
-    args.var_threshold = 100.0  
-    args.threshold = 120        
-    args.kernel = 3             
-    args.dilate = 2             
-
-    args.min_area = 50.0        
-    args.max_area = None
-    args.no_debug = True 
-
-
-    bg = create_background_subtractor(
-        history=args.history,
-        var_threshold=args.var_threshold,
-        detect_shadows=True,
-    )
-
-    ts = []
-    xs = []
-    ys = []
-    radii = []
-    areas = []
-
-# aggiungere [tracker] nel message
-    print(f"{VIOLA}[TRACKER] Tracking started.")
-    print("Press q to save and quit.")
-    print(f"Press ESC to quit without saving.{RESET}")
-
-    while True:
-        ret, frame = cap.read()
-
-        if not ret:
-            print("Could not read frame.")
-            break
-
-        now = time.time()
-
-        foreground, threshold, clean = compute_foreground_masks(
-            frame,
-            bg,
-            threshold_value=args.threshold,
-            kernel_size=args.kernel,
-            dilation_iterations=args.dilate,
-        )
-
-        detection = detect_largest_contour_circle(
-            clean,
-            min_area=args.min_area,
-            max_area=args.max_area,
-        )
-
-        if detection is not None:
-            ts.append(now)
-            xs.append(detection["x"])
-            ys.append(detection["y"])
-            radii.append(detection["radius"])
-
-            area = detection["area"]
-            if area is None:
-                area = np.nan
-
-            areas.append(area)
-
-        display = frame.copy()
-        draw_detection(display, detection)
-        draw_track(display, xs, ys)
-
-        if not args.no_debug:
-            cv2.imshow("foreground", foreground)
-            cv2.imshow("threshold", threshold)
-            cv2.imshow("clean_mask", clean)
-
-        cv2.imshow("tracking", display)
-
-        key = cv2.waitKey(1) & 0xFF
-        if now - ts[0] > recording_time_sec:
-            if len(ts) > 0 and args.save:
-                save_tracking_csv(args.output, ts, xs, ys, radii, areas)
-                print(f"Saved {len(ts)} points to: {args.output}")
-            else:
-                print("No detections saved.")
-            break
-
-        if key == 27:
-            print("ESC pressed. Exiting without saving.")
-            break
-        
-        cv2.destroyAllWindows()
-
-
-
-def main():
     try:
-        ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
-        print(f"Connesso a {SERIAL_PORT} a {BAUD_RATE} baud.")
-        
-        read_thread = threading.Thread(target=read_from_arduino, args=(ser,), daemon=True)
-        read_thread.start()
-        
-        cap = open_camera(camera_index=0)
-        # Routine di cambio di motor speed
-        try:
-            for ii in range(1, 100):
+        serial_port = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=1)
+        messages.success(f"Connected to {SERIAL_PORT} at {BAUD_RATE} baud.")
 
-                command = str(ii) + "\n"
-                ser.write(command.encode('utf-8'))
-                tracker(cap, ii, 180)
-        finally:
-            cap.release()            
-                
-    except serial.SerialException as e:
-        print(f"Errore di connessione seriale: {e}")
+        read_thread = threading.Thread(
+            target=log_serial_messages,
+            args=(serial_port,),
+            daemon=True,
+        )
+        read_thread.start()
+
+        OUTPUT_DIRECTORY.mkdir(parents=True, exist_ok=True)
+        for speed in np.arange(1, 80, 0.5):
+            serial_port.write(f"{speed}\n".encode())
+            speed_label = str(speed).replace(".", "_")
+            output = OUTPUT_DIRECTORY / f"{speed_label}_steps_s.csv"
+            command = [
+                sys.executable,
+                "scripts/02_track_moving_bead.py",
+                "--rec-time",
+                str(RECORDING_DURATION),
+                "--output",
+                str(output),
+                "--no-debug",
+            ]
+            subprocess.run(command, check=True)
+            messages.success(f"Completed speed step {speed}")
+
+        messages.result("All data successfully acquired.")
+        return 0
+    except serial.SerialException as exc:
+        messages.error(f"Serial communication error: {exc}")
+        messages.warning("Check the serial port name and device connection.")
+        return 1
+    except subprocess.CalledProcessError as exc:
+        messages.error(f"Tracking subprocess failed with exit code {exc.returncode}")
+        return exc.returncode or 1
     except KeyboardInterrupt:
-        print("\nProgramma interrotto dall'utente.")
+        print()
+        messages.warning("User interruption detected.")
+        return 0
     finally:
-        if 'ser' in locals() and ser.is_open:
-            ser.close()
-        print("Porta seriale chiusa.")
+        if serial_port is not None and serial_port.is_open:
+            serial_port.close()
+            messages.info("Serial port closed.")
+
 
 if __name__ == "__main__":
-    main()       
-
+    raise SystemExit(main())

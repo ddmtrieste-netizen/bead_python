@@ -38,6 +38,17 @@ ino_scripts/*
 # Jupyter
 .ipynb_checkpoints/
 
+# Graphify generated knowledge graph
+graphify-out/
+
 # OS / editor
 .DS_Store
 .vscode/
+
+# Python package metadata
+*.egg-info/
+
+# Agents
+.codex
+AGENTS.md
+resume.txt
