@@ -14,6 +14,12 @@ from beadtrack.detection import (
     detect_largest_contour_circle,
 )
 from beadtrack.drawing import draw_detection, draw_track
+from beadtrack.remote_view import (
+    Action,
+    RangeControl,
+    RemoteView,
+    add_display_arguments,
+)
 
 WINDOW = "Bead tracking diagnostic"
 TRACKBAR_LEARNING_RATE = "Learning x1e-4 (0=auto)"
@@ -60,6 +66,7 @@ def build_parser():
         default=480,
         help="Width of each dashboard panel.",
     )
+    add_display_arguments(parser)
     return parser
 
 
@@ -216,6 +223,7 @@ def main(argv=None):
     validate_args(parser, args)
 
     cap = None
+    remote = None
     xs = []
     ys = []
     fps = 0.0
@@ -223,20 +231,100 @@ def main(argv=None):
     frozen = False
     detect_shadows = not args.no_shadows
     active_var_threshold = args.var_threshold
+    remote_controls = {
+        "learning_position": 0,
+        "var_threshold": args.var_threshold,
+        "mask_threshold": args.threshold,
+        "dilation": args.dilate,
+        "min_area": args.min_area,
+    }
 
     try:
         cap = open_camera(camera_index=args.camera)
         background = create_model(args.history, active_var_threshold, detect_shadows)
-        create_controls(args)
-        messages.info("Diagnostic tracking started in one window.")
-        messages.info(
-            "SPACE freeze/resume | r reset model | s shadows on/off | c clear track | q quit"
-        )
+        if args.display == "remote":
+            remote = RemoteView(
+                "Bead tracking diagnostic",
+                port=args.remote_port,
+                controls=(
+                    RangeControl(
+                        "learning_position", TRACKBAR_LEARNING_RATE, 0, 100, 1, 0
+                    ),
+                    RangeControl(
+                        "var_threshold",
+                        TRACKBAR_VAR_THRESHOLD,
+                        1,
+                        200,
+                        1,
+                        args.var_threshold,
+                    ),
+                    RangeControl(
+                        "mask_threshold",
+                        TRACKBAR_MASK_THRESHOLD,
+                        0,
+                        255,
+                        1,
+                        args.threshold,
+                    ),
+                    RangeControl(
+                        "dilation", TRACKBAR_DILATION, 0, 5, 1, args.dilate
+                    ),
+                    RangeControl(
+                        "min_area", TRACKBAR_MIN_AREA, 0, 2000, 1, args.min_area
+                    ),
+                ),
+                actions=(
+                    Action("toggle_freeze", "Freeze / resume", (" ",)),
+                    Action("reset", "Reset model", ("r",)),
+                    Action("toggle_shadows", "Shadows on / off", ("s",)),
+                    Action("clear_track", "Clear track", ("c",)),
+                    Action("stop", "Stop", ("q", "Escape"), danger=True),
+                ),
+            )
+            remote.start()
+            messages.info(f"Remote diagnostic view: {remote.url}")
+        else:
+            create_controls(args)
+            messages.info("Diagnostic tracking started in one window.")
+            messages.info(
+                "SPACE freeze/resume | r reset model | s shadows on/off | "
+                "c clear track | q quit"
+            )
 
         while True:
+            if remote is not None:
+                for event in remote.drain_events():
+                    if event.value is not None and event.name in remote_controls:
+                        remote_controls[event.name] = int(event.value)
+                    elif event.name == "stop":
+                        messages.result("diagnostic_tracking_stopped=true")
+                        return 0
+                    elif event.name == "toggle_freeze":
+                        frozen = not frozen
+                    elif event.name == "reset":
+                        background = create_model(
+                            args.history, active_var_threshold, detect_shadows
+                        )
+                        frozen = False
+                        xs.clear()
+                        ys.clear()
+                    elif event.name == "toggle_shadows":
+                        detect_shadows = not detect_shadows
+                        background = create_model(
+                            args.history, active_var_threshold, detect_shadows
+                        )
+                        frozen = False
+                        xs.clear()
+                        ys.clear()
+                    elif event.name == "clear_track":
+                        xs.clear()
+                        ys.clear()
+
             frame = read_frame_or_raise(cap)
 
-            controls = read_controls()
+            controls = (
+                dict(remote_controls) if remote is not None else read_controls()
+            )
             if controls["var_threshold"] != active_var_threshold:
                 active_var_threshold = controls["var_threshold"]
                 background = create_model(
@@ -299,9 +387,23 @@ def main(argv=None):
                 clean,
                 args.panel_width,
             )
-            cv2.imshow(WINDOW, dashboard)
+            if remote is not None:
+                if detection is None:
+                    detection_state = "none"
+                else:
+                    detection_state = f"{detection.x:.1f}, {detection.y:.1f}"
+                remote.update_state(
+                    fps=round(fps, 1),
+                    detection=detection_state,
+                    frozen=frozen,
+                    shadows=detect_shadows,
+                )
+                remote.publish_frame(dashboard)
+                key = 255
+            else:
+                cv2.imshow(WINDOW, dashboard)
+                key = cv2.waitKey(1) & 0xFF
 
-            key = cv2.waitKey(1) & 0xFF
             if key in (27, ord("q")):
                 messages.result("diagnostic_tracking_stopped=true")
                 return 0
@@ -334,7 +436,10 @@ def main(argv=None):
     finally:
         if cap is not None:
             cap.release()
-        cv2.destroyAllWindows()
+        if remote is not None:
+            remote.close()
+        if args.display == "local":
+            cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":

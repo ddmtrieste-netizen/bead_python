@@ -54,6 +54,34 @@ uv run python scripts/03_plot_tracking_csv.py --input data/processed/track.csv
 Run `uv run python scripts/02_track_moving_bead.py --help` to inspect all
 tracking options.
 
+## Remote view over SSH
+
+The live camera scripts can serve their video and controls to a browser without
+requiring a graphical display on the acquisition computer. The HTTP server is
+bound to `127.0.0.1` only, so reach it through an SSH tunnel rather than exposing
+it on the local network.
+
+Open the tunnel from the MASTER computer:
+
+```bash
+ssh -L 8765:127.0.0.1:8765 <user>@orin11
+```
+
+Then, inside that SSH session, start one of the live scripts on Orin:
+
+```bash
+uv run python scripts/01_view_camera.py --display remote
+uv run python scripts/02_track_moving_bead.py --display remote
+uv run python scripts/04_tune_bead_tracking.py --display remote
+```
+
+Open `http://127.0.0.1:8765` in a browser on MASTER. The camera view offers a
+remote stop button, tracking offers save/stop and discard/stop, and the tuning
+page mirrors the OpenCV sliders and keyboard commands. Use `--remote-port` on
+Orin, and the same destination port in the SSH tunnel, when port 8765 is busy.
+Closing the browser or tunnel does not stop acquisition; reconnecting shows the
+latest frame. The original OpenCV windows remain the default (`--display local`).
+
 ## Tracking CSV
 
 Single-bead recordings contain the columns `t`, `x`, `y`, `radius`, and `area`.

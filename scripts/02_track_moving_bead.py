@@ -15,6 +15,12 @@ from beadtrack.detection import (
 from beadtrack.drawing import draw_detection, draw_sample_track
 from beadtrack.io import save_tracking_csv, timestamp_for_filename
 from beadtrack.models import TrackingData, TrackingSample
+from beadtrack.remote_view import (
+    Action,
+    RemoteView,
+    add_display_arguments,
+    compose_grid,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -54,14 +60,16 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Automatically stop after this many seconds.",
     )
+    add_display_arguments(parser)
     return parser
 
 
-def main() -> int:
-    args = build_parser().parse_args()
+def main(argv=None) -> int:
+    args = build_parser().parse_args(argv)
     output = args.output or f"data/processed/track_{timestamp_for_filename()}.csv"
 
     capture = None
+    remote = None
     samples: list[TrackingSample] = []
 
     try:
@@ -71,13 +79,30 @@ def main() -> int:
             var_threshold=args.var_threshold,
             detect_shadows=True,
         )
+        if args.display == "remote":
+            remote = RemoteView(
+                "Beadtrack moving bead",
+                port=args.remote_port,
+                actions=(
+                    Action("stop_save", "Save and stop", ("q",)),
+                    Action(
+                        "stop_discard",
+                        "Stop without saving",
+                        ("Escape",),
+                        danger=True,
+                    ),
+                ),
+            )
+            remote.start()
+            messages.info(f"Remote tracking view: {remote.url}")
         recording_started_at = time.monotonic()
 
         messages.info("Tracking started.", end=" ")
-        print(
-            f"Press {messages.bold('q')} to save and quit. "
-            f"Press {messages.bold('ESC')} to quit without saving."
-        )
+        if args.display == "local":
+            print(
+                f"Press {messages.bold('q')} to save and quit. "
+                f"Press {messages.bold('ESC')} to quit without saving."
+            )
 
         for captured in iter_frames(capture):
             frame = captured.image
@@ -103,13 +128,34 @@ def main() -> int:
             draw_detection(display, detection)
             draw_sample_track(display, samples)
 
-            if not args.no_debug:
-                cv2.imshow("foreground", foreground)
-                cv2.imshow("threshold", threshold)
-                cv2.imshow("clean_mask", clean)
-            cv2.imshow("tracking", display)
+            if remote is not None:
+                remote_frame = display
+                if not args.no_debug:
+                    remote_frame = compose_grid(
+                        [
+                            ("TRACKING", display),
+                            ("FOREGROUND", foreground),
+                            ("THRESHOLD", threshold),
+                            ("CLEAN MASK", clean),
+                        ]
+                    )
+                remote.update_state(detections=len(samples))
+                remote.publish_frame(remote_frame)
+                event_names = {event.name for event in remote.drain_events()}
+                if "stop_discard" in event_names:
+                    key = 27
+                elif "stop_save" in event_names:
+                    key = ord("q")
+                else:
+                    key = 255
+            else:
+                if not args.no_debug:
+                    cv2.imshow("foreground", foreground)
+                    cv2.imshow("threshold", threshold)
+                    cv2.imshow("clean_mask", clean)
+                cv2.imshow("tracking", display)
+                key = cv2.waitKey(1) & 0xFF
 
-            key = cv2.waitKey(1) & 0xFF
             time_is_up = (
                 args.rec_time is not None
                 and now - recording_started_at >= args.rec_time
@@ -130,13 +176,19 @@ def main() -> int:
                 return 0
 
         return 0
+    except KeyboardInterrupt:
+        messages.warning("Tracking interrupted without saving.")
+        return 0
     except (OSError, RuntimeError, ValueError, cv2.error) as exc:
         messages.error(exc)
         return 1
     finally:
         if capture is not None:
             capture.release()
-        cv2.destroyAllWindows()
+        if remote is not None:
+            remote.close()
+        if args.display == "local":
+            cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
