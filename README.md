@@ -82,6 +82,16 @@ Orin, and the same destination port in the SSH tunnel, when port 8765 is busy.
 Closing the browser or tunnel does not stop acquisition; reconnecting shows the
 latest frame. The original OpenCV windows remain the default (`--display local`).
 
+The RPM mapping pipeline can also keep one remote view open across its complete
+speed sweep:
+
+```bash
+uv run python pipelines/Mapping_RPM_pipeline/mapping_RPM.py \
+  --speeds 5 10 \
+  --duration 10 \
+  --display remote
+```
+
 ## Tracking CSV
 
 Single-bead recordings contain the columns `t`, `x`, `y`, `radius`, and `area`.

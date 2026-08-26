@@ -10,6 +10,7 @@ __all__ = [
     "ensure_parent_directory",
     "load_tracking_csv",
     "save_tracking_csv",
+    "save_tracking_csv_atomic",
     "timestamp_for_filename",
 ]
 
@@ -54,6 +55,21 @@ def save_tracking_csv(
                 ]
             )
 
+    return path
+
+
+def save_tracking_csv_atomic(
+    filename: str | Path,
+    data: TrackingData,
+) -> Path:
+    """Save tracking data through a temporary file, then replace the target."""
+    path = ensure_parent_directory(filename)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    try:
+        save_tracking_csv(temporary, data)
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
     return path
 
 

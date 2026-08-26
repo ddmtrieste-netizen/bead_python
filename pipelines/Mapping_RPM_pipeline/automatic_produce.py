@@ -20,18 +20,18 @@ def infer_speed_from_filename(file_path):
     """
     Expected filename:
         5_RPM.csv
-        25_RPM.csv
+        25.5_RPM.csv
 
     The leading number is interpreted as motor command [steps/s].
     """
 
     file_path = Path(file_path)
-    match = re.match(r"(\d+)_RPM\.csv$", file_path.name)
+    match = re.match(r"([+-]?(?:\d+(?:\.\d*)?|\.\d+))_RPM\.csv$", file_path.name)
 
     if match is None:
         raise ValueError(f"Cannot infer speed from filename: {file_path.name}")
 
-    return int(match.group(1))
+    return float(match.group(1))
 
 
 def find_speed_files(data_dir):
@@ -132,7 +132,7 @@ def main():
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="./data/mapping_RMP_aug07/mapping_RMP_1",
+        default="./data/processed/mapping_RPM",
         help="Folder containing files like 5_RPM.csv.",
     )
 
@@ -183,14 +183,14 @@ def main():
     parser.add_argument(
         "--output",
         type=str,
-        default="./data/mapping_RMP_aug07/mapping_1/rpm_summary.csv",
+        default="./data/processed/mapping_RPM/rpm_summary.csv",
         help="Output summary CSV.",
     )
 
     parser.add_argument(
         "--figure",
         type=str,
-        default="./data/mapping_RMP_aug07/outcome/rpm_curve_raw.png",
+        default="./data/processed/mapping_RPM/rpm_curve_raw.png",
         help="Output figure path. Use empty string to disable saving.",
     )
 

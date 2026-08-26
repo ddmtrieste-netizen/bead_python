@@ -13,7 +13,7 @@ from beadtrack.plotting import apply_plot_scale
 
 
 def get_file_from_speed(data_dir, speed):
-    return Path(data_dir) / f"{speed}_RPM.csv"
+    return Path(data_dir) / f"{float(speed):g}_RPM.csv"
 
 
 def write_single_result_csv(output_file, result):
@@ -314,7 +314,7 @@ def aggregate_bin_spectra(bins, aggregate="mean"):
 
 def analyze_single_file(
     speed=None,
-    data_dir="./data/mapping_RPM_submerged/mapping_RMP",
+    data_dir="./data/processed/mapping_RPM",
     method="raw",
     signal_name="x",
     bin_sec=20.0,
@@ -374,7 +374,7 @@ def analyze_single_file(
     duration_s = float(t[-1] - t[0]) if len(t) > 1 else np.nan
 
     return {
-        "steps_per_second": int(speed),
+        "steps_per_second": float(speed),
         "file": str(file_path),
         "method": method,
         "signal": signal_name,
@@ -594,7 +594,7 @@ def main():
 
     parser.add_argument(
         "--speed",
-        type=int,
+        type=float,
         default=None,
         help="Speed/command. If omitted, speed=5 is used.",
     )
@@ -602,7 +602,7 @@ def main():
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="./data/mapping_RPM_submerged/mapping_RMP3",
+        default="./data/processed/mapping_RPM",
         help="Folder containing files like 5_RPM.csv.",
     )
 

@@ -1,26 +1,19 @@
 """Track the largest moving bead using MOG2 background subtraction."""
 
 import argparse
-import time
 
 import cv2
 
 from beadtrack import messages
 from beadtrack.camera import iter_frames, open_camera
-from beadtrack.detection import (
-    compute_foreground_masks,
-    create_background_subtractor,
-    detect_largest_contour_circle,
-)
-from beadtrack.drawing import draw_detection, draw_sample_track
 from beadtrack.io import save_tracking_csv, timestamp_for_filename
-from beadtrack.models import TrackingData, TrackingSample
 from beadtrack.remote_view import (
     Action,
     RemoteView,
     add_display_arguments,
     compose_grid,
 )
+from beadtrack.tracking import SegmentTracker, TrackingParameters
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -70,14 +63,19 @@ def main(argv=None) -> int:
 
     capture = None
     remote = None
-    samples: list[TrackingSample] = []
 
     try:
         capture = open_camera(camera_index=args.camera)
-        background = create_background_subtractor(
-            history=args.history,
-            var_threshold=args.var_threshold,
-            detect_shadows=True,
+        tracker = SegmentTracker(
+            TrackingParameters(
+                history=args.history,
+                var_threshold=args.var_threshold,
+                threshold=args.threshold,
+                kernel=args.kernel,
+                dilate=args.dilate,
+                min_area=args.min_area,
+                max_area=args.max_area,
+            )
         )
         if args.display == "remote":
             remote = RemoteView(
@@ -95,8 +93,6 @@ def main(argv=None) -> int:
             )
             remote.start()
             messages.info(f"Remote tracking view: {remote.url}")
-        recording_started_at = time.monotonic()
-
         messages.info("Tracking started.", end=" ")
         if args.display == "local":
             print(
@@ -105,41 +101,20 @@ def main(argv=None) -> int:
             )
 
         for captured in iter_frames(capture):
-            frame = captured.image
-            now = captured.time
-
-            foreground, threshold, clean = compute_foreground_masks(
-                frame,
-                background,
-                threshold_value=args.threshold,
-                kernel_size=args.kernel,
-                dilation_iterations=args.dilate,
-            )
-            detection = detect_largest_contour_circle(
-                clean,
-                min_area=args.min_area,
-                max_area=args.max_area,
-            )
-
-            if detection is not None:
-                samples.append(TrackingSample(time=now, detection=detection))
-
-            display = frame.copy()
-            draw_detection(display, detection)
-            draw_sample_track(display, samples)
+            processed = tracker.process(captured)
 
             if remote is not None:
-                remote_frame = display
+                remote_frame = processed.display
                 if not args.no_debug:
                     remote_frame = compose_grid(
                         [
-                            ("TRACKING", display),
-                            ("FOREGROUND", foreground),
-                            ("THRESHOLD", threshold),
-                            ("CLEAN MASK", clean),
+                            ("TRACKING", processed.display),
+                            ("FOREGROUND", processed.foreground),
+                            ("THRESHOLD", processed.threshold),
+                            ("CLEAN MASK", processed.clean),
                         ]
                     )
-                remote.update_state(detections=len(samples))
+                remote.update_state(detections=processed.sample_count)
                 remote.publish_frame(remote_frame)
                 event_names = {event.name for event in remote.drain_events()}
                 if "stop_discard" in event_names:
@@ -150,24 +125,24 @@ def main(argv=None) -> int:
                     key = 255
             else:
                 if not args.no_debug:
-                    cv2.imshow("foreground", foreground)
-                    cv2.imshow("threshold", threshold)
-                    cv2.imshow("clean_mask", clean)
-                cv2.imshow("tracking", display)
+                    cv2.imshow("foreground", processed.foreground)
+                    cv2.imshow("threshold", processed.threshold)
+                    cv2.imshow("clean_mask", processed.clean)
+                cv2.imshow("tracking", processed.display)
                 key = cv2.waitKey(1) & 0xFF
 
             time_is_up = (
                 args.rec_time is not None
-                and now - recording_started_at >= args.rec_time
+                and processed.elapsed >= args.rec_time
             )
             if key == ord("q") or time_is_up:
-                if samples and args.save:
-                    data = TrackingData.from_samples(samples)
+                if tracker.sample_count and args.save:
+                    data = tracker.data()
                     save_tracking_csv(output, data)
                     messages.success(
                         f"Saved {len(data)} points to {messages.bold(output)}"
                     )
-                elif not samples:
+                elif not tracker.sample_count:
                     messages.warning("No detections saved.")
                 return 0
 
