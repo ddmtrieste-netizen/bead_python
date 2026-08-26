@@ -2,6 +2,7 @@
 
 import argparse
 import threading
+import time
 
 import serial
 
@@ -36,6 +37,7 @@ def main() -> int:
         read_thread.start()
 
         while True:
+            time.sleep(0.01)
             messages.arduino_prompt()
             user_input = input().strip()
             if user_input.lower() == "exit":
